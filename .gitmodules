@@ -1,0 +1,3 @@
+[submodule "src/label-studio"]
+	path = src/label-studio
+	url = git@github.com:lolipopshock/label-studio.git
