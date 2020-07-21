@@ -38,7 +38,7 @@ def load_image_from_url(url):
     is_local_file = True
     if is_local_file:
         filename, dir_path = url.split('/data/')[1].split('?d=')
-        dir_path = str(urllib.parse.unquote(dir_path))
+        dir_path = str(urllib.parse.unquote_plus(dir_path))
         filepath = os.path.join(dir_path, filename)
         return cv2.imread(filepath)
     else:
