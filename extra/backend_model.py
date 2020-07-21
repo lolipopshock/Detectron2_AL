@@ -162,8 +162,8 @@ class ObjectDetectionAPI(LabelStudioMLBase):
         self.freeze_extractor = freeze_extractor
     
         self.model = Detectron2LayoutModel(
-            config_path="/home/shannon/project/2006_ICML/results/train-1-0/config.yaml",
-            model_path ="/home/shannon/project/2006_ICML/results/train-1-0/model_final.pth",
+            config_path="https://www.dropbox.com/s/ta4777i1g1jjj18/config.yml?dl=1",
+            model_path ="https://www.dropbox.com/s/f261qar6f75b9c0/model_final.pth?dl=1",
             label_map={1: "title", 2: "address", 3: "text", 4:"number"},
             extra_config=["TEST.DETECTIONS_PER_IMAGE", 150, 
                           "MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.5,
