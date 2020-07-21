@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import torch
 import numpy as np
 from copy import deepcopy
+from itertools import product
 
 from detectron2.structures import Boxes, ImageList, Instances, pairwise_iou
 from detectron2.utils.registry import Registry
@@ -42,13 +43,15 @@ def cvt_instance_to_textblock(cur_detection):
                             for cur_det in cur_detection ]
     return pred_boxes
 
-def jitter_proposals(cur_proposals, jitter):
+def jitter_proposals(cur_proposals, jitter_param):
     
     new_proposals = deepcopy(cur_proposals)
     for idx in range(len(cur_proposals)):
         new_proposals[idx].proposal_boxes.tensor = \
-            cur_proposals[idx].proposal_boxes.tensor + torch.Tensor([jitter]).to('cuda') 
-    
+            torch.matmul(
+                cur_proposals[idx].proposal_boxes.tensor,
+                generate_shift_matrix(*jitter_param).to('cuda') 
+            )    
     return new_proposals
 
 def compute_jitter_statistics(origs, all_news):
@@ -74,21 +77,30 @@ def compute_jitter_statistics_cpu(origs, all_news):
         results.append(JitterStatistics(box_diff, score_diff, cls_diff))
     return results
 
+def generate_shift_matrix(alpha, beta):
+    return torch.Tensor([
+            [(1-alpha), 0,       -alpha,    0],
+            [0,        (1-beta), 0,         -beta],
+            [alpha,     0,       (1+alpha), 0],
+            [0,         beta,    0,         (1+beta)],
+        ])
 
 @ROI_HEADS_REGISTRY.register()
 class ALROIHeads(StandardROIHeads):
 
     def __init__(self, cfg, input_shape):
         super(ALROIHeads, self).__init__(cfg, input_shape)
-        self.jitters = [
-                [5, 0, 5, 0],
-                [0, 5, 0, 5],
-                [-5, 0, -5, 0],
-                [0, -5, 0, -5],
-                [-5, 0, 5, 0],
-                [0, 5, 0, -5],
-                [5, 0, -5, 0],
-                [0, -5, 0, 5]]
+        jitters = []
+        alphas = [0.1, 0.15]
+        betas  = [0.04, 0.08]
+        for alpha, beta in product(alphas, betas):
+            jitters.extend([
+                [alpha, beta],
+                [alpha, -beta],
+                [-alpha, beta],
+                [-alpha, -beta],
+            ])
+        self.jitters = jitters
 
     def estimate_for_proposals(self, features, proposals):
         features = [features[f] for f in self.in_features]
@@ -118,8 +130,8 @@ class ALROIHeads(StandardROIHeads):
                 cur_predictions = [orig_prediction[i:i+1] for orig_prediction in orig_predictions]
 
                 all_jitter_predictions = []
-                for jitter_vector in self.jitters: 
-                    new_proposals = jitter_proposals(cur_proposals, jitter_vector)
+                for jitter_param in self.jitters: 
+                    new_proposals = jitter_proposals(cur_proposals, jitter_param)
                     jittered_outputs = self.estimate_for_proposals(features, new_proposals)
                     jitter_predictions, _ = jittered_outputs.inference(score_thresh=0, nms_thresh=0, topk_per_image=1)
                     all_jitter_predictions.append(jitter_predictions)
