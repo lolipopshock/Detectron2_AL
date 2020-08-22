@@ -33,19 +33,19 @@ _C.AL.OBJECT_FUSION = CN()
 # Specifies the configs to fuse model prediction and ground-truth (gt)
 _C.AL.OBJECT_FUSION.OVERLAPPING_METRIC = 'iou' # {'iou', 'dice_coefficient', 'overlap_coefficient'}
 # The function to calculate the overlapping between model pred and gt
-_C.AL.OBJECT_FUSION.OVERLAPPING_TH = 0.25
+_C.AL.OBJECT_FUSION.OVERLAPPING_TH = 0.25 # Optional
 # The threshold for selecting the boxes 
-_C.AL.OBJECT_FUSION.SELECTION_METHOD = 'iou' # {'top', 'above', 'nonzero'}
+_C.AL.OBJECT_FUSION.SELECTION_METHOD = 'top' # {'top', 'above', 'nonzero'}
 # For gt boxes with non-zero overlapping with the pred box, specify the 
 # way to choose the gt boxes. 
 # top: choose the one with the highest overlapping
 # above: choose the ones has the overlapping above the threshold specified above
 # nonzero: choose the gt boxes with non-zero overlapping
 _C.AL.OBJECT_FUSION.REMOVE_DUPLICATES = True
-_C.AL.OBJECT_FUSION.REMOVE_DUPLICATEs_TH = 0.25
+_C.AL.OBJECT_FUSION.REMOVE_DUPLICATES_TH = 0.15
 # For the fused dataset, remove duplicated boxes with overlapping more than 
 # the given threshold
-_C.AL.OBJECT_FUSION.RECOVER_MISSING = True
+_C.AL.OBJECT_FUSION.RECOVER_MISSING_OBJECTS = True
 # If true, we recover the mis-identified objects during the process
 
 _C.AL.TRAINING = CN()
