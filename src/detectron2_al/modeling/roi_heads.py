@@ -42,20 +42,22 @@ class ROIHeadsAL(StandardROIHeads):
             raise NotImplementedError
 
     def estimate_for_proposals(self, features, proposals):
-        features = [features[f] for f in self.in_features]
-        box_features = self.box_pooler(features,
-                            [x if isinstance(x, Boxes) \
-                                else x.proposal_boxes for x in proposals])
-        box_features = self.box_head(box_features)
-        pred_class_logits, pred_proposal_deltas = self.box_predictor(box_features)
-        del box_features
 
-        outputs = FastRCNNOutputs(
-            self.box2box_transform,
-            pred_class_logits,
-            pred_proposal_deltas,
-            proposals,
-            self.smooth_l1_beta)
+        with torch.no_grad():
+            features = [features[f] for f in self.in_features]
+            box_features = self.box_pooler(features,
+                                [x if isinstance(x, Boxes) \
+                                    else x.proposal_boxes for x in proposals])
+            box_features = self.box_head(box_features)
+            pred_class_logits, pred_proposal_deltas = self.box_predictor(box_features)
+            del box_features
+
+            outputs = FastRCNNOutputs(
+                self.box2box_transform,
+                pred_class_logits,
+                pred_proposal_deltas,
+                proposals,
+                self.smooth_l1_beta)
         
         return outputs
 
@@ -116,4 +118,3 @@ class ROIHeadsAL(StandardROIHeads):
             cur_detection.scores_al = (1-cur_detection.scores)**2
 
         return cur_detections
-
