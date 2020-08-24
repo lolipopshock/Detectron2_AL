@@ -90,14 +90,16 @@ class ObjectFusion:
 
             max_overlapping_for_gt_boxes = pairwise_iou(combined_boxes, gt_boxes).max(dim=0).values
             missing_gt_boxes_indices = torch.where(max_overlapping_for_gt_boxes<=0.05)[0]
-            print(missing_gt_boxes_indices)
-            print(selected_gt_indices)
             selected_gt_indices = torch.cat([selected_gt_indices, missing_gt_boxes_indices])
-            print(selected_gt_indices)
+
         combined_instances = self._fuse_pred_with_gt(pred, selected_pred_indices,
                                                 gt, selected_gt_indices)
 
-        return self._postprocess(combined_instances, gt)
+        result = self._postprocess(combined_instances, gt)
+        result['image_score'] = pred.scores_al[selected_gt_indices].mean().item()
+        result['changed_inst'] = len(selected_gt_indices)
+
+        return result
 
     def _fuse_pred_with_gt(self, pred, pred_indices, gt, gt_indices):
         boxes   = self._join_elements_pred_with_gt(pred.pred_boxes, pred_indices,
