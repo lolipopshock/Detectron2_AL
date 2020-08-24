@@ -90,6 +90,21 @@ def pairwise_overlap_coefficient(boxes1, boxes2):
 
     return _pairwise_scoring_template(boxes1, boxes2, overlap_coefficient)
 
+
+
+
+# def select_top(gt, overlappings):
+#     max_idx = np.argmax(overlappings)
+#     if overlappings[max_idx]<=0.0: 
+#         return []
+#     else:
+#         return [gt[max_idx]]
+
+# def select_nonzero(gt, overlappings):
+#     return [box for (box, overlap) in zip(gt, overlappings) if overlap>0.0]
+
+
+
 def select_top(overlapping_scores) -> List[List[int]]: 
     """
     Obtain the gt box ids of the top overlapping score 

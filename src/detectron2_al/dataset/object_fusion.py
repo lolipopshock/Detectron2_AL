@@ -1,4 +1,4 @@
-from .utils import *
+from ..scoring_utils import *
 from typing import List, Tuple, Dict, Any
 from functools import partial
 from detectron2.structures import Boxes, Instances
