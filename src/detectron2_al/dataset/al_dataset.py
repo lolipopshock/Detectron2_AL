@@ -24,7 +24,16 @@ def _write_json(data, filename):
         json.dump(data, fp)
 
 def _calculate_iterations(num_imgs, batch_size, num_epochs):
-    return int(num_imgs/batch_size*num_epochs)
+    return int(num_imgs*num_epochs/batch_size)
+
+def build_al_dataset(cfg):
+
+    if cfg.AL.MODE == 'image':
+        return ImageActiveLearningDataset(cfg)
+    elif cfg.AL.MODE == 'object':
+        return ObjectActiveLearningDataset(cfg)
+    else:
+        raise ValueError(f'Unknown active learning mode {cfg.AL.MODE}')
 
 class HandyCOCO(COCO):
     
@@ -162,13 +171,13 @@ class ActiveLearningDataset:
 
         # Internal Storage
         self._history = DatasetHistory()
-        self._round = 0
+        self._round = -1
         self._cfg = cfg.clone()
         self._cfg.freeze()
         
-    def calculate_iterations_for_cur_dataset(self):
+    def calculate_iterations_for_cur_datasets(self):
         return _calculate_iterations(
-            num_imgs   = self._history[-1].num_images,
+            num_imgs   = sum([info.num_images for info in self._history]),
             batch_size = self._cfg.SOLVER.IMS_PER_BATCH,
             num_epochs = self._cfg.AL.TRAINING.EPOCHS_PER_ROUND
         )
@@ -209,7 +218,7 @@ class ActiveLearningDataset:
 
         if dataset_name is None:
             dataset_name = self._history[-1].name
-            max_iter = self.calculate_iterations_for_cur_dataset()
+            max_iter = self.calculate_iterations_for_cur_datasets()
         else:
             assert dataset_name in self._history.all_dataset_names
             max_iter = self._cfg.SOLVER.MAX_ITER / self.total_rounds
