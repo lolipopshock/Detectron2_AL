@@ -211,6 +211,16 @@ class ActiveLearningDataset:
             batch_size = self._cfg.SOLVER.IMS_PER_BATCH,
             num_epochs = self.epochs_per_round[self._round]
         )
+
+    def calculate_estimated_total_iterations(self):
+        bs = self._cfg.SOLVER.IMS_PER_BATCH
+        num_imgs = self.budget.all_allocations(_as='image')
+        num_epochs = [self.epochs_per_round[i] for i in range(self.total_rounds)]
+        return sum(
+            [
+                _calculate_iterations(num_img, bs, num_epoch) \
+                    for (num_img, num_epoch) in zip(num_imgs, num_epochs)
+            ]
         )
 
     def dataset_name_at(self, round):
