@@ -161,6 +161,14 @@ class DatasetInfo:
     num_objects: int
     image_ids: List
 
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "json_path": self.json_path,
+            "num_images": self.num_images,
+            "num_objects": self.num_objects,
+            "image_ids": self.image_ids
+        }
 
 class DatasetHistory(list):
 
@@ -168,6 +176,8 @@ class DatasetHistory(list):
     def all_dataset_names(self):
         return [ele.name for ele in self]
 
+    def save(self, filename):
+        _write_json([ele.to_dict() for ele in self], filename)
 
 class EpochsPerRound:
 
@@ -326,7 +336,7 @@ class ActiveLearningDataset:
             )
         )
 
-    def create_dataset_with_annotations(self, annotations, image_ids):
+    def create_dataset_with_annotations(self, annotations, image_ids, num_objects=None):
         
         cur_json_path = self.cur_dataset_jsonpath
         cur_data_name = self.cur_dataset_name
@@ -348,7 +358,7 @@ class ActiveLearningDataset:
                 name = cur_data_name,
                 json_path = cur_json_path,
                 num_images = len(dataset['images']),
-                num_objects = len(dataset['annotations']),
+                num_objects = len(dataset['annotations']) if num_objects is None else num_objects,
                 image_ids = image_ids
             )
         )
@@ -371,6 +381,9 @@ class ActiveLearningDataset:
         """
         assert self._round <= self.total_rounds
         self._round += 1
+
+    def save_history(self):
+        self._history.save(os.path.join(self.cache_dir, 'labeling_history'))
 
 class ImageActiveLearningDataset(ActiveLearningDataset):
 
@@ -407,11 +420,12 @@ class ObjectActiveLearningDataset(ActiveLearningDataset):
         selected_image_ids = []
         selected_annotations = []
         allocated_budget = self.budget.allocate(self._round)
-
+        
+        used_budget = 0
         if self.sampling_method == 'top':
             sorted_image_scores = np.argsort(image_scores).tolist()
 
-            while allocated_budget>=0 and sorted_image_scores!=[]:
+            while allocated_budget>used_budget and sorted_image_scores!=[]:
 
                 idx = sorted_image_scores.pop()
                 image_id = fused_results[idx]['image_id']
@@ -424,11 +438,11 @@ class ObjectActiveLearningDataset(ActiveLearningDataset):
                 # of this field won't affect the coco loading, and will make 
                 # it easier to compute the score.
 
-                allocated_budget -= fused_results[idx]['changed_inst']
+                used_budget += fused_results[idx]['changed_inst']
         else:
             raise NotImplementedError
 
-        self.create_dataset_with_annotations(selected_annotations, selected_image_ids)
+        self.create_dataset_with_annotations(selected_annotations, selected_image_ids, num_objects=used_budget)
         dataset_eval = self.evaluate_merged_dataset(self._round)
         pd.Series(dataset_eval).to_csv(self.cur_dataset_jsonpath.replace('.json', 'eval.csv'))
 
