@@ -26,6 +26,11 @@ __all__ =  ["build_al_trainer",
 
 def build_al_trainer(cfg):
 
+    logger = logging.getLogger("detectron2")
+    if not logger.isEnabledFor(logging.INFO):  # setup_logger is not called for d2
+        setup_logger()
+
+    logger.info("Creating Active Learning trainer for {} mode".format(cfg.AL.MODE))
     if cfg.AL.MODE == 'image':
         return ImageActiveLearningTrainer(cfg)
     elif cfg.AL.MODE == 'object':
@@ -42,10 +47,6 @@ class ActiveLearningTrainer(DefaultTrainer):
     """
 
     def __init__(self, cfg):
-
-        logger = logging.getLogger("detectron2")
-        if not logger.isEnabledFor(logging.INFO):  # setup_logger is not called for d2
-            setup_logger()
         
         model = self.build_model(cfg)
         optimizer = self.build_optimizer(cfg, model)
@@ -134,7 +135,7 @@ class ActiveLearningTrainer(DefaultTrainer):
             OrderedDict of results, if evaluation is enabled. Otherwise None.
         """
         
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger("detectron2")
         self.al_dataset.create_initial_dataset()
 
         logger.info("The estimated total number of iterations is {}".format(self.al_dataset.calculate_estimated_total_iterations()))
@@ -160,6 +161,8 @@ class ActiveLearningTrainer(DefaultTrainer):
                 logger.info("Started running scoring for round:{}/{}".format(self.round, total_round))
                 self.run_scoring_step()
                 self.model.train()
+
+        self.al_dataset.save_history()
 
     def run_scoring_step(self):
         """
