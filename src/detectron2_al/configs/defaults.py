@@ -60,13 +60,18 @@ _C.AL.OBJECT_FUSION.REMOVE_DUPLICATES_TH = 0.15
 # the given threshold
 _C.AL.OBJECT_FUSION.RECOVER_MISSING_OBJECTS = True
 # If true, we recover the mis-identified objects during the process
+_C.AL.OBJECT_FUSION.INITIAL_RATIO = 0.85
+_C.AL.OBJECT_FUSION.LAST_RATIO = 0.25
+_C.AL.OBJECT_FUSION.DECAY = 'linear'
 
 _C.AL.TRAINING = CN()
 _C.AL.TRAINING.ROUNDS = 5 
 # The number of rounds for performing AL dataset update
-_C.AL.TRAINING.EPOCHS_PER_ROUND = 5
+_C.AL.TRAINING.EPOCHS_PER_ROUND_INITIAL = 500
 # The numbers of epochs for training during each round. 
 # As Detectron2 does not support epochs natively, we will use the 
 # following formula to convert the epochs to iterations after creating 
 # the new dataset:
 # iterations = total_imgs / batch_size * epochs_per_round
+_C.AL.TRAINING.EPOCHS_PER_ROUND_DECAY = 'linear'
+_C.AL.TRAINING.EPOCHS_PER_ROUND_LAST = 50
