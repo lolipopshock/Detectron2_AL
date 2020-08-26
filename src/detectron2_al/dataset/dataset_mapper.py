@@ -1,6 +1,8 @@
 from detectron2.data import DatasetMapper
 from detectron2.data.detection_utils import T, logging
 
+__all__ = ['DatasetMapper']
+
 def build_transform_gen_al(cfg, is_train):
     # Almost the same as detectron2.data.detection_utils.build_transform_gen
     # Yet there is no horizontal flip for the input image

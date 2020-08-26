@@ -12,6 +12,8 @@ from detectron2.modeling.roi_heads.roi_heads import ROIHeads, StandardROIHeads, 
 from detectron2.structures.boxes import Boxes
 from .utils import *
 
+__all__ = ['ROIHeadsAL']
+
 
 @ROI_HEADS_REGISTRY.register()
 class ROIHeadsAL(StandardROIHeads):

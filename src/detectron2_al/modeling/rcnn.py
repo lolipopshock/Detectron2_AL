@@ -2,6 +2,8 @@ from detectron2.modeling.meta_arch.build import META_ARCH_REGISTRY
 from detectron2.modeling.meta_arch.rcnn import ProposalNetwork, GeneralizedRCNN
 import torch
 
+__all__ = ['ActiveLearningRCNN']
+
 
 @META_ARCH_REGISTRY.register()
 class ActiveLearningRCNN(GeneralizedRCNN):

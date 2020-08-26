@@ -19,6 +19,11 @@ from ..dataset.al_dataset import build_al_dataset
 from ..dataset.object_fusion import ObjectFusion
 
 
+__all__ =  ["build_al_trainer", 
+            "ActiveLearningTrainer",
+            "ImageActiveLearningTrainer",
+            "ObjectActiveLearningTrainer"]
+
 def build_al_trainer(cfg):
 
     if cfg.AL.MODE == 'image':

@@ -6,6 +6,8 @@ from detectron2.modeling.postprocessing import detector_postprocess
 import torch
 import numpy as np
 
+__all__ = ['ObjectFusion']
+
 def _quantile(t, q):
     # As we are using pytorch 1.4, there is no native
     # Pytorch support for the quantile function.  
