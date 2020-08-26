@@ -129,10 +129,14 @@ class ActiveLearningTrainer(DefaultTrainer):
             OrderedDict of results, if evaluation is enabled. Otherwise None.
         """
         
-        
+        logger = logging.getLogger(__name__)
         self.al_dataset.create_initial_dataset()
 
+        logger.info("The estimated total number of iterations is {}".format(self.al_dataset.calculate_estimated_total_iterations()))
+        total_round = self.cfg.AL.TRAINING.ROUNDS - 1
         for self.round in range(self.cfg.AL.TRAINING.ROUNDS):
+            
+            logger.info("Started training for round:{}/{}".format(self.round, total_round))
             # Initialize the dataloader and the training steps 
             dataloader, max_iter = self.al_dataset.get_training_dataloader()
             self._data_loader_iter = iter(dataloader)
@@ -144,10 +148,11 @@ class ActiveLearningTrainer(DefaultTrainer):
             # Run the main training loop
             self.train()
             
-            if self.round != self.cfg.AL.TRAINING.ROUNDS-1:
+            if self.round != total_round:
                 # Run the scoring pass and create the new dataset
                 # except for the last round
                 self.model.eval()
+                logger.info("Started running scoring for round:{}/{}".format(self.round, total_round))
                 self.run_scoring_step()
                 self.model.train()
 
