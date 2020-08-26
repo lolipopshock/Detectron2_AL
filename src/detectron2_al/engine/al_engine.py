@@ -2,13 +2,17 @@ import torch
 import logging
 import time
 import weakref
+import os
+import pandas as pd
 from torch.nn.parallel import DistributedDataParallel
+from fvcore.nn.precise_bn import get_bn_modules
 
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.logger import setup_logger
 from detectron2.utils import comm
 from detectron2.evaluation import verify_results
-from detectron2.engine import DefaultPredictor, DefaultTrainer, HookBase
+from detectron2.engine import DefaultPredictor, DefaultTrainer, HookBase, hooks
+from detectron2.evaluation import COCOEvaluator
 
 
 from ..dataset.al_dataset import build_al_dataset
@@ -69,6 +73,47 @@ class ActiveLearningTrainer(DefaultTrainer):
     def build_al_dataset(cls, cfg):
         return build_al_dataset(cfg)
 
+    @classmethod
+    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+        return COCOEvaluator(dataset_name, cfg, True, output_folder)
+
+    def build_hooks(self):
+        cfg = self.cfg.clone()
+        cfg.defrost()
+        cfg.DATALOADER.NUM_WORKERS = 0  # save some memory and time for PreciseBN
+
+        ret = [
+            hooks.IterationTimer(),
+            hooks.LRScheduler(self.optimizer, self.scheduler),
+            hooks.PreciseBN(
+                # Run at the same freq as (but before) evaluation.
+                cfg.TEST.EVAL_PERIOD,
+                self.model,
+                # Build a new data loader to not affect training
+                self.build_train_loader(cfg),
+                cfg.TEST.PRECISE_BN.NUM_ITER,
+            )
+            if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)
+            else None,
+        ]
+
+        if comm.is_main_process():
+            ret.append(hooks.PeriodicCheckpointer(self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD))
+
+        def test_and_save_results():
+            res = self._last_eval_results = self.test(self.cfg, self.model)
+            eval_dir = os.path.join(self.cfg.OUTPUT_DIR, 'evals')
+            os.makedirs(eval_dir, exist_ok=True)
+            pd.DataFrame(res).to_csv(os.path.join(eval_dir, f'{self.round}.csv'))
+            return self._last_eval_results
+        
+        ret.append(hooks.EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results))
+
+        if comm.is_main_process():
+            # run writers in the end, so that evaluation metrics are written
+            ret.append(hooks.PeriodicWriter(self.build_writers(), period=20))
+        return ret
+
     def register_hooks(self, hooks):
         hooks = [h for h in hooks if h is not None]
         for h in hooks:
@@ -87,8 +132,7 @@ class ActiveLearningTrainer(DefaultTrainer):
         
         self.al_dataset.create_initial_dataset()
 
-        for _r in range(self.cfg.AL.TRAINING.ROUNDS):
-            
+        for self.round in range(self.cfg.AL.TRAINING.ROUNDS):
             # Initialize the dataloader and the training steps 
             dataloader, max_iter = self.al_dataset.get_training_dataloader()
             self._data_loader_iter = iter(dataloader)
@@ -100,10 +144,12 @@ class ActiveLearningTrainer(DefaultTrainer):
             # Run the main training loop
             self.train()
             
-            # Run the scoring pass 
-            self.model.eval()
-            self.run_scoring_step()
-            self.model.train()
+            if self.round != self.cfg.AL.TRAINING.ROUNDS-1:
+                # Run the scoring pass and create the new dataset
+                # except for the last round
+                self.model.eval()
+                self.run_scoring_step()
+                self.model.train()
 
     def run_scoring_step(self):
         """
