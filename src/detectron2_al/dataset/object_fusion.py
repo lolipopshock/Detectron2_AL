@@ -3,6 +3,7 @@ from typing import List, Tuple, Dict, Any
 from functools import partial
 from detectron2.structures import Boxes, Instances
 from detectron2.modeling.postprocessing import detector_postprocess
+import torch
 import layoutparser as lp
 
 def _quantile(t, q):
@@ -41,7 +42,9 @@ class ObjectFusion:
         self.remove_duplicates = cfg.AL.OBJECT_FUSION.REMOVE_DUPLICATES
         self.remove_duplicates_th = cfg.AL.OBJECT_FUSION.REMOVE_DUPLICATES_TH
         self.recover_missing_objects = cfg.AL.OBJECT_FUSION.RECOVER_MISSING_OBJECTS
-    
+
+        self.device = torch.device(cfg.MODEL.DEVICE)
+
     def _init_overlapping_funcs(self, cfg):
         self.overlapping_metric = self.OVERLAPPING_METRICS[cfg.AL.OBJECT_FUSION.OVERLAPPING_METRIC]
         self.overlapping_th = cfg.AL.OBJECT_FUSION.OVERLAPPING_TH
@@ -55,13 +58,14 @@ class ObjectFusion:
         """
         Combine the model predictions with the ground-truth
         by replacing the objects in the pred with score_al of 
-        top replace_ratio.
+        top replace_ratio. It will automatically move all the boxes
+        to self.device, and the output will be saved back to cpu.
         """
-        gt_boxes = gt['instances'].gt_boxes
-        pred_boxes = pred.pred_boxes
+        gt_boxes = gt['instances'].gt_boxes.to(self.device)
+        pred_boxes = pred.pred_boxes.to(self.device)
 
-        score_al_th = _quantile(pred.scores_al, 0.75)
-        selected_pred_indices = torch.where(pred.scores_al > score_al_th)[0]
+        score_al_th = _quantile(pred.scores_al, 1-replace_ratio)
+        selected_pred_indices = torch.where(pred.scores_al > score_al_th)[0].to(self.device)
         
         overlapping_scores = self.overlapping_metric(
                 pred_boxes[selected_pred_indices], 
@@ -69,8 +73,7 @@ class ObjectFusion:
 
         selected_gt_indices = self.gt_selector(overlapping_scores) 
         selected_gt_indices = list(set(sum(selected_gt_indices, []))) # Remove duplicates in gt boxes
-        selected_gt_indices = torch.Tensor(selected_gt_indices, 
-                                           device=selected_pred_indices.device).long()
+        selected_gt_indices = torch.Tensor(selected_gt_indices).to(self.device).long()
 
         if self.remove_duplicates:
 
@@ -98,15 +101,18 @@ class ObjectFusion:
         result = self._postprocess(combined_instances, gt)
         result['image_score'] = pred.scores_al[selected_gt_indices].mean().item()
         result['changed_inst'] = len(selected_gt_indices)
+        
+        del gt_boxes
+        del pred_boxes
 
         return result
 
     def _fuse_pred_with_gt(self, pred, pred_indices, gt, gt_indices):
-        boxes   = self._join_elements_pred_with_gt(pred.pred_boxes, pred_indices,
-                                          gt['instances'].gt_boxes, gt_indices)
+        boxes   = self._join_elements_pred_with_gt(pred.pred_boxes.to('cpu'), pred_indices.to('cpu'),
+                                          gt['instances'].gt_boxes.to('cpu'), gt_indices.to('cpu'))
         
-        classes = self._join_elements_pred_with_gt(pred.pred_classes, pred_indices,
-                                          gt['instances'].gt_classes, gt_indices)
+        classes = self._join_elements_pred_with_gt(pred.pred_classes.to('cpu'), pred_indices.to('cpu'),
+                                          gt['instances'].gt_classes.to('cpu'), gt_indices.to('cpu'))
 
         return Instances(pred.image_size,
                          pred_boxes = boxes,
