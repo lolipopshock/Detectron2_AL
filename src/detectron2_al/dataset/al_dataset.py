@@ -82,7 +82,11 @@ class Budget(object):
         elif self.style == 'image':
             self._initial = self._remaining = cfg.AL.DATASET.IMAGE_BUDGET
 
-        self.spent_history = []
+        if self.allocation_method == 'linear':
+            self._allocations = np.ones(self.total_rounds)*int(self.initial / self.total_rounds)
+        else:
+            raise NotImplementedError 
+        self._allocations = self._allocations.astype('int')
 
     @property
     def remaining_object_budget(self):
@@ -112,21 +116,29 @@ class Budget(object):
         """
         return self._initial
 
-    def allocate(self, round, _as=None):
+    def all_allocations(self, _as=None):
 
-        if self.allocation_method == 'linear':
-            allocated = int(self.initial / self.total_rounds)
-        else:
-            raise NotImplementedError
-        
-        self._remaining -= allocated
-        self.spent_history.append(allocated)
         if _as is not None and _as != self.style:
             if _as == 'object':
-                # originall image
+                # originally image
+                return self._allocations * self.avg_object_per_image
+            elif _as == 'image':
+                # originally object
+                return self._allocations // self.avg_object_per_image
+        else:
+            return self._allocations 
+
+    def allocate(self, round, _as=None):
+
+        allocated = self._allocations[round]
+        
+        self._remaining -= allocated
+        if _as is not None and _as != self.style:
+            if _as == 'object':
+                # originally image
                 allocated = allocated * self.avg_object_per_image
             elif _as == 'image':
-                # originall object
+                # originally object
                 allocated = int(allocated // self.avg_object_per_image)
         return allocated
 
