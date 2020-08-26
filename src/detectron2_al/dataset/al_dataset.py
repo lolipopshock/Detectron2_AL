@@ -151,11 +151,28 @@ class DatasetInfo:
     num_objects: int
     image_ids: List
 
+
 class DatasetHistory(list):
 
     @property
     def all_dataset_names(self):
         return [ele.name for ele in self]
+
+
+class EpochsPerRound:
+
+    def __init__(self, cfg):
+        self._rounds = cfg.AL.TRAINING.ROUNDS 
+        self._init   = cfg.AL.TRAINING.EPOCHS_PER_ROUND_INITIAL
+        self._decay  = cfg.AL.TRAINING.EPOCHS_PER_ROUND_DECAY
+        self._last   = cfg.AL.TRAINING.EPOCHS_PER_ROUND_LAST
+
+        if self._decay == 'linear':
+            self._epochs = np.linspace(self._init, self._last, self._rounds).astype('int')
+
+    def __getitem__(self, r):
+        return self._epochs[r]
+
 
 class ActiveLearningDataset:
 
@@ -177,6 +194,7 @@ class ActiveLearningDataset:
         # Scheduling
         self.total_rounds = cfg.AL.TRAINING.ROUNDS
         self.budget = Budget(cfg, self.coco.avg_object_per_image())
+        self.epochs_per_round = EpochsPerRound(cfg)
         
         # Sampling method during AL
         self.sampling_method = cfg.AL.DATASET.SAMPLE_METHOD
@@ -191,7 +209,8 @@ class ActiveLearningDataset:
         return _calculate_iterations(
             num_imgs   = sum([info.num_images for info in self._history]),
             batch_size = self._cfg.SOLVER.IMS_PER_BATCH,
-            num_epochs = self._cfg.AL.TRAINING.EPOCHS_PER_ROUND
+            num_epochs = self.epochs_per_round[self._round]
+        )
         )
 
     def dataset_name_at(self, round):
