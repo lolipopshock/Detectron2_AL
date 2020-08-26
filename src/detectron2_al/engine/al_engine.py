@@ -201,6 +201,6 @@ class ObjectActiveLearningTrainer(ActiveLearningTrainer):
             preds = self.model.generate_object_al_scores(data)
 
             for gt, pred in zip(data, preds):
-                fused_results.append(self.object_fusion.combine(pred, gt))
+                fused_results.append(self.object_fusion.combine(pred, gt, self.round))
 
         self.al_dataset.create_new_dataset(fused_results)

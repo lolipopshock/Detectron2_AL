@@ -4,7 +4,7 @@ from functools import partial
 from detectron2.structures import Boxes, Instances
 from detectron2.modeling.postprocessing import detector_postprocess
 import torch
-import layoutparser as lp
+import numpy as np
 
 def _quantile(t, q):
     # As we are using pytorch 1.4, there is no native
@@ -21,6 +21,21 @@ def _deselect(t, indices):
     """
     selected_indices = [i not in indices for i in range(len(t))]
     return t[selected_indices]
+
+
+class ObjectFusionRatioScheduler:
+
+    def __init__(self, cfg):
+        self._rounds = cfg.AL.TRAINING.ROUNDS 
+        self._init   = cfg.AL.OBJECT_FUSION.INITIAL_RATIO
+        self._decay  = cfg.AL.OBJECT_FUSION.DECAY
+        self._last   = cfg.AL.OBJECT_FUSION.LAST_RATIO
+
+        if self._decay == 'linear':
+            self._vals = np.linspace(self._init, self._last, self._rounds)
+    
+    def __getitem__(self, r):
+        return self._vals[r]
 
 
 class ObjectFusion:
@@ -44,6 +59,7 @@ class ObjectFusion:
         self.recover_missing_objects = cfg.AL.OBJECT_FUSION.RECOVER_MISSING_OBJECTS
 
         self.device = torch.device(cfg.MODEL.DEVICE)
+        self.fusion_ratio = ObjectFusionRatioScheduler(cfg)
 
     def _init_overlapping_funcs(self, cfg):
         self.overlapping_metric = self.OVERLAPPING_METRICS[cfg.AL.OBJECT_FUSION.OVERLAPPING_METRIC]
@@ -54,17 +70,20 @@ class ObjectFusion:
 
     def combine(self, pred: Instances, 
                       gt: Dict, 
-                      replace_ratio=0.25):
+                      round: int):
         """
         Combine the model predictions with the ground-truth
         by replacing the objects in the pred with score_al of 
         top replace_ratio. It will automatically move all the boxes
         to self.device, and the output will be saved back to cpu.
         """
+        fusion_ratio = self.fusion_ratio[round]
         gt_boxes = gt['instances'].gt_boxes.to(self.device)
         pred_boxes = pred.pred_boxes.to(self.device)
 
-        score_al_th = _quantile(pred.scores_al, 1-replace_ratio)
+        score_al_th = _quantile(pred.scores_al, 1-fusion_ratio) 
+        # If fusion_ratio is 0.8, then we want to find all objects that 
+        # have scores more than 0.2(=1-0.8) quantile. 
         selected_pred_indices = torch.where(pred.scores_al > score_al_th)[0].to(self.device)
         
         overlapping_scores = self.overlapping_metric(
