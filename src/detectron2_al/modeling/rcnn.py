@@ -41,3 +41,23 @@ class ActiveLearningRCNN(GeneralizedRCNN):
         return [(score, gt['image_id']) for score, gt in zip(image_scores, batched_inputs)]
 
     def forward_al(self, batched_inputs, do_postprocess=True):
+
+        """
+        Run inference on the given inputs with active learning.
+
+        Returns:
+            same as in :meth:`forward`.
+        """
+        assert not self.training
+
+        images = self.preprocess_image(batched_inputs)
+        
+        with torch.no_grad():
+            features, rpn_proposals = self._estimate_feature_proposal(batched_inputs)
+
+        detection_results = self.roi_heads.generate_object_scores(features, rpn_proposals)
+    
+        if do_postprocess:
+            detection_results = GeneralizedRCNN._postprocess(detection_results, batched_inputs, images.image_sizes) 
+        
+        return detection_results
