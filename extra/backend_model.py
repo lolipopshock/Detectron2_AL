@@ -20,9 +20,9 @@ from label_studio.ml.utils import get_single_tag_keys, get_choice, is_skipped
 
 import sys
 sys.path.append('./src')
-from detectron2_util import roi_heads, model
-from detectron2_util.engine import ActiveLearningPredictor
-from detectron2.config import get_cfg
+from detectron2_al.configs import get_cfg
+from detectron2_al.engine.al_engine import ActiveLearningPredictor
+from detectron2_al.modeling import *
 import layoutparser as lp
 from fvcore.common.file_io import PathManager
 
@@ -58,6 +58,11 @@ def load_image_from_url(url):
 def convert_block_to_value(block, image_height, image_width):
 
 
+    block.block.x_1 = max(0, block.block.x_1)
+    block.block.x_2 = min(block.block.x_2, image_width)
+    block.block.y_1 = max(0, block.block.y_1)
+    block.block.y_2 = min(block.block.y_2, image_height)
+
     return  {
             "height": block.height / image_height*100,
             "rectanglelabels": [str(block.type)],
@@ -65,7 +70,7 @@ def convert_block_to_value(block, image_height, image_width):
             "width":  block.width / image_width*100,
             "x":      block.coordinates[0] / image_width*100,
             "y":      block.coordinates[1] / image_height*100,
-            "score":  block.score*100
+            "score":  block.score_al*100
         }
 
 
@@ -81,7 +86,7 @@ class Detectron2LayoutModel():
         cfg.merge_from_file(config_path)
         cfg.merge_from_list(extra_config)
         
-        cfg.MODEL.ROI_HEADS.NAME = 'ALROIHeads'
+        cfg.MODEL.ROI_HEADS.NAME = 'ROIHeadsAL'
         cfg.MODEL.META_ARCHITECTURE = 'ActiveLearningRCNN'
 
         if model_path is not None:
@@ -118,16 +123,17 @@ class Detectron2LayoutModel():
 
         return layout
 
-    def gather_output_with_stats(self, outputs, stats):
+    def gather_output_with_stats(self, outputs):
 
         instance_pred = outputs['instances'].to("cpu")
 
         layout = lp.Layout()
         scores = instance_pred.scores.tolist()
+        scores_al = instance_pred.scores_al.tolist()
         boxes  = instance_pred.pred_boxes.tensor.tolist()
         labels = instance_pred.pred_classes.tolist()
 
-        for score, box, label, stat in zip(scores, boxes, labels, stats):
+        for score, box, label, score_al in zip(scores, boxes, labels, scores_al):
             x_1, y_1, x_2, y_2 = box
 
             if self.label_map is not None:
@@ -136,7 +142,8 @@ class Detectron2LayoutModel():
             cur_block = lp.TextBlock(
                     lp.Rectangle(x_1, y_1, x_2, y_2),
                     type=label, 
-                    score=stat.box)
+                    score=score)
+            cur_block.score_al = score_al
             layout.append(cur_block)
 
         return layout
@@ -147,8 +154,8 @@ class Detectron2LayoutModel():
         return layout
 
     def detect_al(self, image):
-        pred, pred_stats = self.model(image)
-        layout  = self.gather_output_with_stats(pred, pred_stats)
+        pred = self.model(image)
+        layout  = self.gather_output_with_stats(pred)
         return layout
 
 class ObjectDetectionAPI(LabelStudioMLBase):
