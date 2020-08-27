@@ -39,3 +39,5 @@ class ActiveLearningRCNN(GeneralizedRCNN):
         image_scores = self.roi_heads.generate_image_scores(features, rpn_proposals)
 
         return [(score, gt['image_id']) for score, gt in zip(image_scores, batched_inputs)]
+
+    def forward_al(self, batched_inputs, do_postprocess=True):
