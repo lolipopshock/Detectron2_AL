@@ -88,12 +88,12 @@ class Budget(object):
 
         self.avg_object_per_image = avg_object_per_image
         if self.style == 'object':
-            self._initial = self._remaining = cfg.AL.DATASET.OBJECT_BUDGET
+            self._initial = self._remaining = cfg.AL.DATASET.IMAGE_BUDGET*avg_object_per_image
         elif self.style == 'image':
             self._initial = self._remaining = cfg.AL.DATASET.IMAGE_BUDGET
 
         if self.allocation_method == 'linear':
-            self._allocations = np.ones(self.total_rounds)*int(self.initial / self.total_rounds)
+            self._allocations = np.ones(self.total_rounds)*round(self.initial / self.total_rounds)
         else:
             raise NotImplementedError 
         self._allocations = self._allocations.astype('int')
@@ -138,9 +138,9 @@ class Budget(object):
         else:
             return self._allocations 
 
-    def allocate(self, round, _as=None):
+    def allocate(self, _round, _as=None):
 
-        allocated = self._allocations[round]
+        allocated = self._allocations[_round]
         
         self._remaining -= allocated
         if _as is not None and _as != self.style:
@@ -149,17 +149,18 @@ class Budget(object):
                 allocated = allocated * self.avg_object_per_image
             elif _as == 'image':
                 # originally object
-                allocated = int(allocated // self.avg_object_per_image)
+                allocated = int(round(allocated / self.avg_object_per_image))
         return allocated
 
 
-@dataclass(frozen=True)
+@dataclass
 class DatasetInfo:
     name: str
     json_path: str
     num_images: int
     num_objects: int
     image_ids: List
+    training_iter: int = 0
 
     def to_dict(self):
         return {
@@ -167,7 +168,8 @@ class DatasetInfo:
             "json_path": self.json_path,
             "num_images": self.num_images,
             "num_objects": self.num_objects,
-            "image_ids": self.image_ids
+            "image_ids": self.image_ids,
+            "training_iter": self.training_iter
         }
 
 class DatasetHistory(list):
@@ -284,6 +286,8 @@ class ActiveLearningDataset:
             assert dataset_name in self._history.all_dataset_names
             max_iter = self._cfg.SOLVER.MAX_ITER / self.total_rounds
 
+        self._history[-1].training_iter = max_iter
+
         cfg = self._cfg.clone()
         cfg.defrost()
         cfg.DATASETS.TRAIN = tuple(self._history.all_dataset_names)
@@ -383,7 +387,7 @@ class ActiveLearningDataset:
         self._round += 1
 
     def save_history(self):
-        self._history.save(os.path.join(self.cache_dir, 'labeling_history'))
+        self._history.save(os.path.join(self.cache_dir, 'labeling_history.json'))
 
 class ImageActiveLearningDataset(ActiveLearningDataset):
 
