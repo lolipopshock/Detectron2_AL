@@ -38,6 +38,15 @@ class ObjectFusionRatioScheduler(DefaultSchedular):
         super().__init__(start, end, steps, mode)
 
 
+class ObjectSelectionNumberScheuler(DefaultSchedular):
+    def __init__(self, cfg):
+        steps = cfg.AL.TRAINING.ROUNDS 
+        start = cfg.AL.OBJECT_FUSION.PRESELECTION_RAIO
+        mode  = cfg.AL.OBJECT_FUSION.SELECTION_RAIO_DECAY
+        end   = cfg.AL.OBJECT_FUSION.ENDSELECTION_RAIO
+        super().__init__(start, end, steps, mode)
+
+
 class ObjectFusion:
 
     OVERLAPPING_METRICS = {
@@ -60,6 +69,7 @@ class ObjectFusion:
 
         self.device = torch.device(cfg.MODEL.DEVICE)
         self.fusion_ratio = ObjectFusionRatioScheduler(cfg)
+        self.selection_ratio = ObjectSelectionNumberScheuler(cfg)
 
     def _init_overlapping_funcs(self, cfg):
         self.overlapping_metric = self.OVERLAPPING_METRICS[cfg.AL.OBJECT_FUSION.OVERLAPPING_METRIC]
@@ -70,13 +80,19 @@ class ObjectFusion:
 
     def combine(self, pred: Instances, 
                       gt: Dict, 
-                      round: int):
+                      round: int,
+                      ave_num_objects_per_image: int = None):
         """
         Combine the model predictions with the ground-truth
         by replacing the objects in the pred with score_al of 
         top replace_ratio. It will automatically move all the boxes
         to self.device, and the output will be saved back to cpu.
         """
+        if ave_num_objects_per_image is not None:
+            top_object_numbers = int(ave_num_objects_per_image*self.selection_ratio[round])
+            print(top_object_numbers)
+            pred = pred[:top_object_numbers]
+
         fusion_ratio = self.fusion_ratio[round]
         gt_boxes = gt['instances'].gt_boxes.to(self.device)
         pred_boxes = pred.pred_boxes.to(self.device)

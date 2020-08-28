@@ -63,6 +63,15 @@ _C.AL.OBJECT_FUSION.RECOVER_MISSING_OBJECTS = True
 _C.AL.OBJECT_FUSION.INITIAL_RATIO = 0.85
 _C.AL.OBJECT_FUSION.LAST_RATIO = 0.25
 _C.AL.OBJECT_FUSION.DECAY = 'linear'
+# During the object fusion process, we decay the number of objects selected for inspection
+# as training goes on. 
+_C.AL.OBJECT_FUSION.PRESELECTION_RAIO = 1.5
+_C.AL.OBJECT_FUSION.ENDSELECTION_RAIO = 1.25
+_C.AL.OBJECT_FUSION.SELECTION_RAIO_DECAY = 'linear'
+# During the object fusion process, we take the top x number of objects out of predictions. 
+# The x is calculate as x = avg_object_per_image * SELECTION_RAIO
+# The purpose is not to bring too much useless model predictions in the fusion procedure. 
+
 
 _C.AL.TRAINING = CN()
 _C.AL.TRAINING.ROUNDS = 5 

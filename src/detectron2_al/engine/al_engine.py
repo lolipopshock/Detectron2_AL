@@ -203,13 +203,20 @@ class ObjectActiveLearningTrainer(ActiveLearningTrainer):
         oracle_dataloader, max_iter = self.al_dataset.get_oracle_dataloader()
         oracle_dataloader_iter = iter(oracle_dataloader)
         
+        num_imgs = [info.num_images for info in self.al_dataset._history]
+        num_objs = [info.num_objects for info in self.al_dataset._history]
+        ave_num_objects_per_image = sum(num_objs) // sum(num_imgs)
+
         fused_results = []
         for _iter in range(max_iter):
             data = next(oracle_dataloader_iter)
             preds = self.model.generate_object_al_scores(data)
 
             for gt, pred in zip(data, preds):
-                fused_results.append(self.object_fusion.combine(pred, gt, self.round))
+                fused_results.append(
+                    self.object_fusion.combine(pred, gt, 
+                        self.round, ave_num_objects_per_image)
+                )
 
         self.al_dataset.create_new_dataset(fused_results)
 
