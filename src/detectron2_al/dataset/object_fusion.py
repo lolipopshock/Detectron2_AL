@@ -87,7 +87,8 @@ class ObjectFusion:
         # If fusion_ratio is 0.8, then we want to find all objects that 
         # have scores more than 0.2(=1-0.8) quantile. 
         selected_pred_indices = torch.where(pred.scores_al > score_al_th)[0].to(self.device)
-        
+        aggregated_score = pred.scores_al[selected_pred_indices].mean().item()
+
         overlapping_scores = self.overlapping_metric(
                 pred_boxes[selected_pred_indices], 
                 gt_boxes)
@@ -120,7 +121,7 @@ class ObjectFusion:
                                                 gt, selected_gt_indices)
 
         result = self._postprocess(combined_instances, gt)
-        result['image_score'] = pred.scores_al[selected_gt_indices].mean().item()
+        result['image_score'] = aggregated_score
         result['changed_inst'] = len(selected_gt_indices)
         
         del gt_boxes
