@@ -1,10 +1,13 @@
-from ..scoring_utils import *
 from typing import List, Tuple, Dict, Any
 from functools import partial
-from detectron2.structures import Boxes, Instances
-from detectron2.modeling.postprocessing import detector_postprocess
 import torch
 import numpy as np
+
+from detectron2.structures import Boxes, Instances
+from detectron2.modeling.postprocessing import detector_postprocess
+
+from ..scoring_utils import *
+from ..scheduling_utils import DefaultSchedular
 
 __all__ = ['ObjectFusion']
 
@@ -25,19 +28,14 @@ def _deselect(t, indices):
     return t[selected_indices]
 
 
-class ObjectFusionRatioScheduler:
+class ObjectFusionRatioScheduler(DefaultSchedular):
 
     def __init__(self, cfg):
-        self._rounds = cfg.AL.TRAINING.ROUNDS 
-        self._init   = cfg.AL.OBJECT_FUSION.INITIAL_RATIO
-        self._decay  = cfg.AL.OBJECT_FUSION.DECAY
-        self._last   = cfg.AL.OBJECT_FUSION.LAST_RATIO
-
-        if self._decay == 'linear':
-            self._vals = np.linspace(self._init, self._last, self._rounds)
-    
-    def __getitem__(self, r):
-        return self._vals[r]
+        steps = cfg.AL.TRAINING.ROUNDS 
+        start = cfg.AL.OBJECT_FUSION.INITIAL_RATIO
+        mode  = cfg.AL.OBJECT_FUSION.DECAY
+        end   = cfg.AL.OBJECT_FUSION.LAST_RATIO
+        super().__init__(start, end, steps, mode)
 
 
 class ObjectFusion:

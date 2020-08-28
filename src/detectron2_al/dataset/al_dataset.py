@@ -17,6 +17,7 @@ from detectron2.evaluation.coco_evaluation import instances_to_coco_json
 from .object_fusion import ObjectFusion
 from .dataset_mapper import DatasetMapperAL
 from .utils import build_detection_train_loader_drop_ids
+from ..scheduling_utils import *
 
 __all__ =  ['build_al_dataset',
             'HandyCOCO',
@@ -172,6 +173,7 @@ class DatasetInfo:
             "training_iter": self.training_iter
         }
 
+
 class DatasetHistory(list):
 
     @property
@@ -181,19 +183,16 @@ class DatasetHistory(list):
     def save(self, filename):
         _write_json([ele.to_dict() for ele in self], filename)
 
-class EpochsPerRound:
+
+class EpochsPerRound(IntegerSchedular):
 
     def __init__(self, cfg):
-        self._rounds = cfg.AL.TRAINING.ROUNDS 
-        self._init   = cfg.AL.TRAINING.EPOCHS_PER_ROUND_INITIAL
-        self._decay  = cfg.AL.TRAINING.EPOCHS_PER_ROUND_DECAY
-        self._last   = cfg.AL.TRAINING.EPOCHS_PER_ROUND_LAST
 
-        if self._decay == 'linear':
-            self._epochs = np.linspace(self._init, self._last, self._rounds).astype('int')
-
-    def __getitem__(self, r):
-        return self._epochs[r]
+        steps = cfg.AL.TRAINING.ROUNDS 
+        start = cfg.AL.TRAINING.EPOCHS_PER_ROUND_INITIAL
+        mode  = cfg.AL.TRAINING.EPOCHS_PER_ROUND_DECAY
+        end   = cfg.AL.TRAINING.EPOCHS_PER_ROUND_LAST
+        super().__init__(start, end, steps, mode)
 
 
 class ActiveLearningDataset:
