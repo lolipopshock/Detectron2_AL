@@ -32,3 +32,4 @@ class DatasetMapperAL(DatasetMapper):
         # Only substitute the tfm_gens with the al version, 
         # where there should not be any horizontal flips
         self.tfm_gens = build_transform_gen_al(cfg, is_train)
+        self.crop_gen = None # Enforce no crop_generator 
