@@ -20,12 +20,15 @@ def _quantile(t, q):
              .kthvalue(1 + round(float(q) * (t.numel() - 1)))
              .values.item())
 
-def _deselect(t, indices):
+def _deselect(t, indices, return_mapping=False):
     """
     Select the elements in t with index not in indices
     """
     selected_indices = [i not in indices for i in range(len(t))]
+    if not return_mapping:
     return t[selected_indices]
+    else:
+        return t[selected_indices], [i for i in range(len(t)) if i not in indices]
 
 
 class ObjectFusionRatioScheduler(DefaultSchedular):
@@ -114,11 +117,13 @@ class ObjectFusion:
         if self.remove_duplicates:
 
             selected_gt = gt_boxes[selected_gt_indices]
-            selected_pred = _deselect(pred_boxes, selected_pred_indices)
+            selected_pred, index_mapping = _deselect(pred_boxes, selected_pred_indices, return_mapping=True)
 
             overlapping_scores = pairwise_overlap_coefficient(selected_pred, selected_gt)
             selected_pred_indices_extra, _ = torch.where(overlapping_scores>self.remove_duplicates_th)
-            selected_pred_indices = torch.cat([selected_pred_indices, torch.unique(selected_pred_indices_extra)])
+            selected_pred_indices_extra = torch.LongTensor([index_mapping[i] for i in 
+                                                            torch.unique(selected_pred_indices_extra)]).to(self.device)
+            selected_pred_indices = torch.cat([selected_pred_indices, selected_pred_indices_extra])
 
         if self.recover_missing_objects:
             
