@@ -70,7 +70,6 @@ class ObjectFusion:
         self.remove_duplicates_th = cfg.AL.OBJECT_FUSION.REMOVE_DUPLICATES_TH
         self.recover_missing_objects = cfg.AL.OBJECT_FUSION.RECOVER_MISSING_OBJECTS
         self.recover_almost_correct_predictions = cfg.AL.OBJECT_FUSION.RECOVER_ALMOST_CORRECT_PRED
-        self.budget_eta = cfg.AL.OBJECT_FUSION.BUDGET_ETA
 
         self.device = torch.device(cfg.MODEL.DEVICE)
         self.fusion_ratio = ObjectFusionRatioScheduler(cfg)
@@ -205,7 +204,9 @@ class ObjectFusion:
                                                     gt, modified_gt_indices)
             result = self._postprocess(combined_instances, gt)
             result['image_score'] = aggregated_score
-            result['changed_inst'] = len(modified_gt_indices) + self.budget_eta * len(recovered_gt_indices)
+            result['labeled_inst_from_gt']   = len(modified_gt_indices)  
+            result['dropped_inst_from_pred'] = len(modified_pred_indices)  
+            result['recovered_inst']         = len(recovered_pred_indices)
 
         else:
             combined_instances = self._fuse_pred_with_gt(pred, selected_pred_indices,
@@ -215,8 +216,10 @@ class ObjectFusion:
 
             result = self._postprocess(combined_instances, gt)
             result['image_score'] = aggregated_score
-            result['changed_inst'] = len(selected_gt_indices)
-        
+            result['labeled_inst_from_gt']   = len(selected_gt_indices)
+            result['dropped_inst_from_pred'] = len(selected_pred_indices)
+            result['recovered_inst']         = 0
+
         del gt_boxes
         del pred_boxes
 

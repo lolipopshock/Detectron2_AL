@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 from typing import Dict, Tuple, List
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
@@ -86,6 +86,7 @@ class Budget(object):
 
         self.allocation_method = cfg.AL.DATASET.BUDGET_ALLOCATION
         self.total_rounds = cfg.AL.TRAINING.ROUNDS
+        self.eta = cfg.AL.OBJECT_FUSION.BUDGET_ETA
 
         self.avg_object_per_image = avg_object_per_image
         if self.style == 'object':
@@ -161,18 +162,8 @@ class DatasetInfo:
     num_images: int
     num_objects: int
     image_ids: List
+    anno_details: List = field(default_factory=list)
     training_iter: int = 0
-
-    def to_dict(self):
-        return {
-            "name": self.name,
-            "json_path": self.json_path,
-            "num_images": self.num_images,
-            "num_objects": self.num_objects,
-            "image_ids": self.image_ids,
-            "training_iter": self.training_iter
-        }
-
 
 class DatasetHistory(list):
 
@@ -181,7 +172,7 @@ class DatasetHistory(list):
         return [ele.name for ele in self]
 
     def save(self, filename):
-        _write_json([ele.to_dict() for ele in self], filename)
+        _write_json([vars(ele) for ele in self], filename)
 
 
 class EpochsPerRound(IntegerSchedular):
@@ -339,7 +330,8 @@ class ActiveLearningDataset:
             )
         )
 
-    def create_dataset_with_annotations(self, annotations, image_ids, num_objects=None):
+    def create_dataset_with_annotations(self, annotations, image_ids, 
+                                              labeling_history, num_objects=None):
         
         cur_json_path = self.cur_dataset_jsonpath
         cur_data_name = self.cur_dataset_name
@@ -362,6 +354,7 @@ class ActiveLearningDataset:
                 json_path = cur_json_path,
                 num_images = len(dataset['images']),
                 num_objects = len(dataset['annotations']) if num_objects is None else num_objects,
+                anno_details = labeling_history,
                 image_ids = image_ids
             )
         )
@@ -425,6 +418,7 @@ class ObjectActiveLearningDataset(ActiveLearningDataset):
         allocated_budget = self.budget.allocate(self._round)
         
         used_budget = 0
+        labeling_history = []
         if self.sampling_method == 'top':
             sorted_image_scores = np.argsort(image_scores).tolist()
 
@@ -440,12 +434,23 @@ class ObjectActiveLearningDataset(ActiveLearningDataset):
                 # annotations, and it will be saved in the JSON. The existence
                 # of this field won't affect the coco loading, and will make 
                 # it easier to compute the score.
-
-                used_budget += fused_results[idx]['changed_inst']
+                cur_cost =  fused_results[idx]['labeled_inst_from_gt'] + \
+                            self.budget.eta * fused_results[idx]['recovered_inst']
+                used_budget += round(cur_cost)
+                
+                labeling_history.append({
+                    "image_id":            fused_results[idx]['image_id'],
+                    "labeled_inst_from_gt":fused_results[idx]['labeled_inst_from_gt'],
+                    "used_inst_from_pred": fused_results[idx]['dropped_inst_from_pred'],
+                    "recovered_inst":      fused_results[idx]['recovered_inst']
+                })
         else:
             raise NotImplementedError
 
-        self.create_dataset_with_annotations(selected_annotations, selected_image_ids, num_objects=round(used_budget))
+        self.create_dataset_with_annotations(selected_annotations, 
+                                             selected_image_ids, 
+                                             labeling_history,
+                                             num_objects=round(used_budget))
         dataset_eval = self.evaluate_merged_dataset(self._round)
         pd.Series(dataset_eval).to_csv(self.cur_dataset_jsonpath.replace('.json', 'eval.csv'))
 
