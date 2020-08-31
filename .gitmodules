@@ -1,3 +1,6 @@
 [submodule "src/label-studio"]
 	path = src/label-studio
 	url = git@github.com:lolipopshock/label-studio.git
+[submodule "src/label-studio-frontend"]
+	path = src/label-studio-frontend
+	url = git@github.com:lolipopshock/label-studio-frontend.git
