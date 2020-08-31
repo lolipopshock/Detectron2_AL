@@ -71,6 +71,8 @@ _C.AL.OBJECT_FUSION.SELECTION_RAIO_DECAY = 'linear'
 # During the object fusion process, we take the top x number of objects out of predictions. 
 # The x is calculate as x = avg_object_per_image * SELECTION_RAIO
 # The purpose is not to bring too much useless model predictions in the fusion procedure. 
+_C.AL.OBJECT_FUSION.RECOVER_ALMOST_CORRECT_PRED = True
+_C.AL.OBJECT_FUSION.BUDGET_ETA = 0.2
 
 
 _C.AL.TRAINING = CN()
