@@ -44,8 +44,8 @@ def setup(args):
 
     # Extra configurations for the active learning model
     # for better object selection  
-    cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.25
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.0
+    # cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.25
+    # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.0
 
     # Initializethe dataset information
     cfg.AL.DATASET.NAME = args.dataset_name
