@@ -10,7 +10,7 @@ class DefaultSchedular(object):
             self._val = np.linspace(start, end, steps)
         elif mode == 'geometry':
             # at = a0 * q ** (t-1)
-            q = (start/end)**(1/(steps-1))
+            q = (end/start)**(1/(steps-1))
             self._val = np.array([start*q**i for i in range(steps)])
         else:
             raise NotImplementedError

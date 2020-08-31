@@ -9,7 +9,7 @@ from detectron2.modeling.postprocessing import detector_postprocess
 from ..scoring_utils import *
 from ..scheduling_utils import DefaultSchedular
 
-__all__ = ['ObjectFusion']
+__all__ = ['ObjectFusion', 'ObjectFusionRatioScheduler', 'ObjectSelectionNumberScheuler']
 
 def _quantile(t, q):
     # As we are using pytorch 1.4, there is no native
