@@ -69,6 +69,8 @@ class ObjectFusion:
         self.remove_duplicates = cfg.AL.OBJECT_FUSION.REMOVE_DUPLICATES
         self.remove_duplicates_th = cfg.AL.OBJECT_FUSION.REMOVE_DUPLICATES_TH
         self.recover_missing_objects = cfg.AL.OBJECT_FUSION.RECOVER_MISSING_OBJECTS
+        self.recover_almost_correct_predictions = cfg.AL.OBJECT_FUSION.RECOVER_ALMOST_CORRECT_PRED
+        self.budget_eta = cfg.AL.OBJECT_FUSION.BUDGET_ETA
 
         self.device = torch.device(cfg.MODEL.DEVICE)
         self.fusion_ratio = ObjectFusionRatioScheduler(cfg)
@@ -111,11 +113,49 @@ class ObjectFusion:
                 gt_boxes)
 
         selected_gt_indices = self.gt_selector(overlapping_scores) 
-        selected_gt_indices = list(set(sum(selected_gt_indices, []))) # Remove duplicates in gt boxes
-        selected_gt_indices = torch.Tensor(selected_gt_indices).to(self.device).long()
+        selected_gt_indices = list(sum(selected_gt_indices, [])) 
+        selected_gt_indices = torch.LongTensor(selected_gt_indices).to(self.device)
+        
+        # Remove duplicated gt_boxes from the output 
+        selected_gt_indices, _cts = torch.unique(selected_gt_indices, return_counts=True)
+        gt_indices_ct = {gt_idx.item():_ct.item() for (gt_idx, _ct) in zip(selected_gt_indices, _cts)}
+
+        if self.recover_almost_correct_predictions:
+            # Sometimes the model with generate pretty decent predictions. Therefore
+            # annotators only need to visually check it without modifying the labels. 
+            # Therefore the budget cost is not the "full cost", but a discounted 
+            # partialy cost. In this step, we are trying to find these regions. 
+            max_scores = overlapping_scores.max(dim=-1)
+            to_recover_pred_indices = torch.where(max_scores.values>0.925)[0]
+            
+            recovered_pred_indices = []
+            recovered_gt_indices   = []
+
+            for _idx in to_recover_pred_indices:
+                
+                gt_idx = max_scores.indices[_idx]
+                gt_class = gt['instances'].gt_classes[gt_idx].item()
+                pred_idx = selected_pred_indices[_idx]
+                pred_class = pred.pred_classes[pred_idx].item()
+                if gt_class == pred_class:
+                    if gt_indices_ct[gt_idx.item()] != 1: 
+                        # If some gt box appears more than once, then 
+                        # annotators still need to fix that. Thus we 
+                        # don't include this box as the paritaly 
+                        # discounted (or recovered) boxes 
+                        continue 
+                    else:
+                        recovered_pred_indices.append(pred_idx)
+                        recovered_gt_indices.append(gt_idx)
+            
+            recovered_pred_indices = torch.LongTensor(recovered_pred_indices).to(self.device)
+            recovered_gt_indices = torch.LongTensor(recovered_gt_indices).to(self.device)
 
         if self.remove_duplicates:
-
+            # Sometimes the model will generate duplicated predictions, and some of the 
+            # duplicates won't be selected for matching with the gt. Thus, in this step,
+            # we will find and eliminate these boxes using the identified ground-truth 
+            # boxes.
             selected_gt = gt_boxes[selected_gt_indices]
             selected_pred, index_mapping = _deselect(pred_boxes, selected_pred_indices, return_mapping=True)
 
@@ -126,7 +166,10 @@ class ObjectFusion:
             selected_pred_indices = torch.cat([selected_pred_indices, selected_pred_indices_extra])
 
         if self.recover_missing_objects:
-            
+            # Sometimes the model won't generate predictions for some region. In this step,
+            # we will reterive them by calculating the overlapping between the combined
+            # boxes with all gt_boxes. If there's a gt_boxes without any combined boxes of 
+            # overlapping higher than the threshold (0.05), we add them to the gt boxes list.
             combined_boxes = self._join_elements_pred_with_gt(pred_boxes, 
                                                               selected_pred_indices, 
                                                               gt_boxes, 
@@ -136,12 +179,26 @@ class ObjectFusion:
             missing_gt_boxes_indices = torch.where(max_overlapping_for_gt_boxes<=0.05)[0]
             selected_gt_indices = torch.cat([selected_gt_indices, missing_gt_boxes_indices])
 
-        combined_instances = self._fuse_pred_with_gt(pred, selected_pred_indices,
-                                                gt, selected_gt_indices)
+        if self.recover_almost_correct_predictions:
+            # During the remove_duplicates and recover_missing_objects process, we use the
+            # gt boxes as an delegate for processing. And it's time to switch them back to
+            # the pred boxes. This might cause very tiny inaccuray in these process, but as
+            # we've set very high matching accuracy (0.925), the inaccuracy should be negligible.
+            modified_pred_indices = torch.LongTensor([idx for idx in selected_pred_indices if idx not in recovered_pred_indices])
+            modified_gt_indices = torch.LongTensor([idx for idx in selected_gt_indices if idx not in recovered_gt_indices])
+            combined_instances = self._fuse_pred_with_gt(pred, modified_pred_indices,
+                                                    gt, modified_gt_indices)
+            result = self._postprocess(combined_instances, gt)
+            result['image_score'] = aggregated_score
+            result['changed_inst'] = len(modified_gt_indices) + self.budget_eta * len(recovered_gt_indices)
 
-        result = self._postprocess(combined_instances, gt)
-        result['image_score'] = aggregated_score
-        result['changed_inst'] = len(selected_gt_indices)
+        else:
+            combined_instances = self._fuse_pred_with_gt(pred, selected_pred_indices,
+                                                    gt, selected_gt_indices)
+
+            result = self._postprocess(combined_instances, gt)
+            result['image_score'] = aggregated_score
+            result['changed_inst'] = len(selected_gt_indices)
         
         del gt_boxes
         del pred_boxes

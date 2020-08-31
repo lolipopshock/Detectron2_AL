@@ -445,7 +445,7 @@ class ObjectActiveLearningDataset(ActiveLearningDataset):
         else:
             raise NotImplementedError
 
-        self.create_dataset_with_annotations(selected_annotations, selected_image_ids, num_objects=used_budget)
+        self.create_dataset_with_annotations(selected_annotations, selected_image_ids, num_objects=round(used_budget))
         dataset_eval = self.evaluate_merged_dataset(self._round)
         pd.Series(dataset_eval).to_csv(self.cur_dataset_jsonpath.replace('.json', 'eval.csv'))
 
