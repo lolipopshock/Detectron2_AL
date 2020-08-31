@@ -48,6 +48,8 @@ class ActiveLearningTrainer(DefaultTrainer):
 
     def __init__(self, cfg):
         
+        self.logger = logging.getLogger("detectron2")
+
         model = self.build_model(cfg)
         optimizer = self.build_optimizer(cfg, model)
         
@@ -135,14 +137,13 @@ class ActiveLearningTrainer(DefaultTrainer):
             OrderedDict of results, if evaluation is enabled. Otherwise None.
         """
         
-        logger = logging.getLogger("detectron2")
         self.al_dataset.create_initial_dataset()
 
-        logger.info("The estimated total number of iterations is {}".format(self.al_dataset.calculate_estimated_total_iterations()))
+        self.logger.info("The estimated total number of iterations is {}".format(self.al_dataset.calculate_estimated_total_iterations()))
         total_round = self.cfg.AL.TRAINING.ROUNDS - 1
         for self.round in range(self.cfg.AL.TRAINING.ROUNDS):
             
-            logger.info("Started training for round:{}/{}".format(self.round, total_round))
+            self.logger.info("Started training for round:{}/{}".format(self.round, total_round))
             # Initialize the dataloader and the training steps 
             dataloader, max_iter = self.al_dataset.get_training_dataloader()
             self._data_loader_iter = iter(dataloader)
@@ -158,7 +159,7 @@ class ActiveLearningTrainer(DefaultTrainer):
                 # Run the scoring pass and create the new dataset
                 # except for the last round
                 self.model.eval()
-                logger.info("Started running scoring for round:{}/{}".format(self.round, total_round))
+                self.logger.info("Started running scoring for round:{}/{}".format(self.round, total_round))
                 self.run_scoring_step()
                 self.model.train()
 
@@ -172,6 +173,7 @@ class ActiveLearningTrainer(DefaultTrainer):
         and object-level active learning.
         """ 
         pass
+
 
 class ImageActiveLearningTrainer(ActiveLearningTrainer):
 
@@ -188,7 +190,9 @@ class ImageActiveLearningTrainer(ActiveLearningTrainer):
         for _iter in range(max_iter):
             data = next(oracle_dataloader_iter)
             image_scores.extend(self.model.generate_image_al_scores(data))
-
+            if _iter % 100 == 0:
+                self.logger.info("Running scoring functions for round {}. Step:{}/{}".format(self.round, _iter, max_iter))
+        
         self.al_dataset.create_new_dataset(image_scores)
 
 
@@ -217,7 +221,9 @@ class ObjectActiveLearningTrainer(ActiveLearningTrainer):
                     self.object_fusion.combine(pred, gt, 
                         self.round, ave_num_objects_per_image)
                 )
-
+            if _iter % 100 == 0:
+                self.logger.info("Running scoring functions for round {}. Step:{}/{}".format(self.round, _iter, max_iter))
+        
         self.al_dataset.create_new_dataset(fused_results)
 
 
