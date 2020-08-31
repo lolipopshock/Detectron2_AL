@@ -26,7 +26,7 @@ def _deselect(t, indices, return_mapping=False):
     """
     selected_indices = [i not in indices for i in range(len(t))]
     if not return_mapping:
-    return t[selected_indices]
+        return t[selected_indices]
     else:
         return t[selected_indices], [i for i in range(len(t)) if i not in indices]
 
@@ -93,9 +93,15 @@ class ObjectFusion:
         top replace_ratio. It will automatically move all the boxes
         to self.device, and the output will be saved back to cpu.
         """
+        if len(pred) <= 0:
+            # There is no prediction from the model
+            # Which means this image is very challenging 
+            # We will use all ground-truth data, and assgin high scores
+
+            return self._duplicate_gt_as_output(gt)
+
         if ave_num_objects_per_image is not None:
             top_object_numbers = int(ave_num_objects_per_image*self.selection_ratio[round])
-            print(top_object_numbers)
             pred = pred[:top_object_numbers]
 
         fusion_ratio = self.fusion_ratio[round]
@@ -106,6 +112,12 @@ class ObjectFusion:
         # If fusion_ratio is 0.8, then we want to find all objects that 
         # have scores more than 0.2(=1-0.8) quantile. 
         selected_pred_indices = torch.where(pred.scores_al > score_al_th)[0].to(self.device)
+        
+        if len(selected_pred_indices)<= 0:
+            # For some rounding issues, we might catch no indices. 
+            # We just add all the boxes then. 
+            selected_pred_indices = torch.arange(len(pred_boxes)).to(self.device)
+
         aggregated_score = pred.scores_al[selected_pred_indices].mean().item()
 
         overlapping_scores = self.overlapping_metric(
@@ -175,6 +187,9 @@ class ObjectFusion:
                                                               gt_boxes, 
                                                               selected_gt_indices)
 
+            if len(combined_boxes)<=0:
+                return self._duplicate_gt_as_output(gt)
+
             max_overlapping_for_gt_boxes = pairwise_iou(combined_boxes, gt_boxes).max(dim=0).values
             missing_gt_boxes_indices = torch.where(max_overlapping_for_gt_boxes<=0.05)[0]
             selected_gt_indices = torch.cat([selected_gt_indices, missing_gt_boxes_indices])
@@ -195,6 +210,8 @@ class ObjectFusion:
         else:
             combined_instances = self._fuse_pred_with_gt(pred, selected_pred_indices,
                                                     gt, selected_gt_indices)
+            if len(combined_instances)<=0:
+                return self._duplicate_gt_as_output(gt)
 
             result = self._postprocess(combined_instances, gt)
             result['image_score'] = aggregated_score
@@ -237,3 +254,15 @@ class ObjectFusion:
         width = gt.get("width")
         r = detector_postprocess(instances, height, width)
         return {'instances': r, 'image_id': gt['image_id']}
+
+    def _duplicate_gt_as_output(self, gt):
+
+        copied =  Instances(gt['instances'].image_size,
+                    pred_boxes = gt['instances'].gt_boxes.to('cpu'),
+                    pred_classes = gt['instances'].gt_classes.to('cpu'),
+                    scores = torch.ones_like(gt['instances'].gt_classes).float())
+
+        result = self._postprocess(copied, gt)
+        result['image_score'] = 1
+        result['changed_inst'] = len(gt['instances'])
+        return result
