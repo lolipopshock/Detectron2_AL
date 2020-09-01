@@ -1,23 +1,13 @@
 #!/bin/bash
 
-cd ../tools
+config="$1"
 
-python train_al_model.py \
-    --dataset_name          tkdata-v7 \
-    --json_annotation_train ../data/tk1957-v7/train/annotations.json \
-    --image_path_train      ../data/tk1957-v7/train/ \
-    --json_annotation_val   ../data/tk1957-v7/val/annotations.json \
-    --image_path_val        ../data/tk1957-v7/val/ \
-    --config-file           ../configs/tk/faster_rcnn_X_101_32x8d_FPN_3x.yaml \
-    OUTPUT_DIR  ../outputs/tk/object/faster_rcnn_X_101_32x8d_FPN_3x \
-    AL.MODE object 
+base_command="python train_al_model.py \
+                    --dataset_name          tkdata-v10 \
+                    --json_annotation_train ../data/tk1957-v10/annotations/train.json \
+                    --image_path_train      ../data/tk1957-v10/images \
+                    --json_annotation_val   ../data/tk1957-v10/annotations/val.json \
+                    --image_path_val        ../data/tk1957-v10/images \
+                    --config-file           $config"
 
-python train_al_model.py \
-    --dataset_name          tkdata-v7 \
-    --json_annotation_train ../data/tk1957-v7/train/annotations.json \
-    --image_path_train      ../data/tk1957-v7/train/ \
-    --json_annotation_val   ../data/tk1957-v7/val/annotations.json \
-    --image_path_val        ../data/tk1957-v7/val/ \
-    --config-file           ../configs/tk/faster_rcnn_X_101_32x8d_FPN_3x.yaml \
-    OUTPUT_DIR  ../outputs/tk/image/faster_rcnn_X_101_32x8d_FPN_3x \
-    AL.MODE image 
+bash ./train_base.sh -c "$config" -b "$base_command" -n tk
