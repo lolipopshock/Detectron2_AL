@@ -1,0 +1,7 @@
+_BASE_: "../faster_rcnn_R_50_FPN.yaml"
+AL: 
+  OBJECT_FUSION:
+    DECAY: geometry
+    SELECTION_RAIO_DECAY: geometry 
+  TRAINING: 
+    EPOCHS_PER_ROUND_DECAY: geometry

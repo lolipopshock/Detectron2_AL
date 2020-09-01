@@ -1,0 +1,5 @@
+_BASE_: "../faster_rcnn_R_50_FPN.yaml"
+MODEL:
+  ROI_HEADS:
+    NMS_THRESH_TEST:   0.25
+    SCORE_THRESH_TEST: 0.25
