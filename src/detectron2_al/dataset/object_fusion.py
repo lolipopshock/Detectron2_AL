@@ -267,5 +267,7 @@ class ObjectFusion:
 
         result = self._postprocess(copied, gt)
         result['image_score'] = 1
-        result['changed_inst'] = len(gt['instances'])
+        result['labeled_inst_from_gt']   = len(gt['instances'])
+        result['dropped_inst_from_pred'] = len(selected_pred_indices)
+        result['recovered_inst']         = 0
         return result
