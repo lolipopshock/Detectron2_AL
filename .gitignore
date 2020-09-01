@@ -1,16 +1,15 @@
 # folrder
 data
-data*/
+data/
 credential
 credential/
 model
-model*/
-result
-result*/
-output
+model/
+outputs
 outputs*/
 labeling/
 labeling*/
+*archived/
 
 # Mac Finder Configurations
 .DS_Store
