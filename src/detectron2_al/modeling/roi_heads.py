@@ -31,6 +31,8 @@ class ROIHeadsAL(StandardROIHeads):
             self.object_scoring_func = self._one_vs_two_scoring
         elif cfg.AL.OBJECT_SCORING == 'least_confidence':
             self.object_scoring_func = self._least_confidence_scoring
+        elif cfg.AL.OBJECT_SCORING == 'random':
+            self.object_scoring_func = self._random_scoring
         else:
             raise NotImplementedError
         
@@ -121,5 +123,20 @@ class ROIHeadsAL(StandardROIHeads):
 
         for cur_detection in cur_detections:
             cur_detection.scores_al = (1-cur_detection.scores)**2
+
+        return cur_detections
+
+    def _random_scoring(self, outputs):
+        """
+        Assign random active learning scores for each object 
+        """
+
+        cur_detections, filtered_indices = \
+            outputs.inference(self.test_score_thresh, self.test_nms_thresh, 
+                              self.test_detections_per_img)
+
+        device = cur_detections[0].scores.device
+        for cur_detection in cur_detections:
+            cur_detection.scores_al = torch.rand(cur_detection.scores.shape).to(device)
 
         return cur_detections
