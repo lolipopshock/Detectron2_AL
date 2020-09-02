@@ -1,0 +1,4 @@
+_BASE_: "../faster_rcnn_R_50_FPN.yaml"
+AL:
+  DATASET:
+    IMAGE_BUDGET: 3000
