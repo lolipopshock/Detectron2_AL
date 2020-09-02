@@ -71,17 +71,28 @@ class ROIHeadsAL(StandardROIHeads):
         image_scores = []
 
         for ds in detected_objects_with_given_scores:
-            image_scores.append(self.image_score_aggregation_func(ds.scores).item())
+            if len(ds) == 0:
+                image_scores.append(1.)
+            else:
+                image_scores.append(self.image_score_aggregation_func(ds.scores_al).item())
 
         return image_scores
     
-    def generate_object_scores(self, features, proposals):
+    def generate_object_scores(self, features, proposals, with_image_scores=False):
  
         outputs = self.estimate_for_proposals(features, proposals)
 
         detected_objects_with_given_scores = self.object_scoring_func(outputs)
+        
+        if not with_image_scores:
+            return detected_objects_with_given_scores
+        else:
+            image_scores = []
 
-        return detected_objects_with_given_scores
+            for ds in detected_objects_with_given_scores:
+                image_scores.append(self.image_score_aggregation_func(ds.scores_al).item())
+
+            return image_scores, detected_objects_with_given_scores
 
     ########################################
     ### Class specific scoring functions ### 
