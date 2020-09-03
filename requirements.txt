@@ -1,1 +1,5 @@
-layoutparser=0.1.1
+layoutparser==0.1.1
+dataclasses
+funcy
+lxml
+imagesize
