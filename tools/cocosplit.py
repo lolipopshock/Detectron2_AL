@@ -40,6 +40,12 @@ def main(annotation_path,
         if not any([ele['id']==0 for ele in categories]):
             categories.insert(0, {'supercategory': '', 'id': 0, 'name': '__background__'})
 
+        if split_ratio == 1:
+    
+            save_coco(train_save_path, info, licenses, images, annotations, categories)
+            print("Saved {} entries in {}.".format(len(images), train_save_path))
+            return None
+
         number_of_images = len(images)
 
         images_with_annotations = funcy.lmap(lambda a: int(a['image_id']), annotations)
