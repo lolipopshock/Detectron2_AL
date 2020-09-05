@@ -8,10 +8,19 @@ from detectron2.config.config import CfgNode as CN
 _C.AL = CN()
 _C.AL.MODE = 'object' # {'image', 'object'}
 # Perform active learning on whether image-level or object-level 
-_C.AL.OBJECT_SCORING = '1vs2' # {'1vs2, 'least_confidence', 'jitter'}
+_C.AL.OBJECT_SCORING = '1vs2' # {'1vs2, 'least_confidence', 'perturbation'}
 # The method to compute the individual object scores  
 _C.AL.IMAGE_SCORE_AGGREGATION = 'avg' # {'avg', 'max', 'sum'}
 # The method to aggregate the individual object scores to the whole image score 
+
+_C.AL.PERTURBATION = CN()
+# Configurations for perturbation scoring method
+_C.AL.PERTURBATION.ALPHAS = [0.08, 0.12] 
+# Horizontal translation ratio
+_C.AL.PERTURBATION.BETAS = [0.04, 0.16] 
+# Vertical translation ratio
+_C.AL.PERTURBATION.RANDOM = False 
+# whether generate random perturbation at different iterations
 
 _C.AL.DATASET = CN()
 # Specifies the configs for creating new datasets 

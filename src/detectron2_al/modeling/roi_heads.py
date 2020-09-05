@@ -2,6 +2,7 @@ import layoutparser as lp
 from typing import Dict, List, Optional, Tuple, Union
 import torch
 import numpy as np
+import random 
 from copy import deepcopy
 from itertools import product
 
@@ -21,6 +22,8 @@ class ROIHeadsAL(StandardROIHeads):
     def __init__(self, cfg, input_shape):
         
         super(ROIHeadsAL, self).__init__(cfg, input_shape)
+        self.device = torch.device(cfg.MODEL.DEVICE)
+        self.cfg = cfg
         self._init_al(cfg)
 
     def _init_al(self, cfg):
@@ -33,6 +36,8 @@ class ROIHeadsAL(StandardROIHeads):
             self.object_scoring_func = self._least_confidence_scoring
         elif cfg.AL.OBJECT_SCORING == 'random':
             self.object_scoring_func = self._random_scoring
+        elif cfg.AL.OBJECT_SCORING == 'perturbation':
+            self.object_scoring_func = self._perturbation_scoring
         else:
             raise NotImplementedError
         
@@ -80,19 +85,27 @@ class ROIHeadsAL(StandardROIHeads):
 
         return image_scores
     
-    def generate_object_scores(self, features, proposals):
- 
-        outputs = self.estimate_for_proposals(features, proposals)
+    def generate_object_scores(self, features, proposals, with_image_scores=False):
+        
+        outputs = self.estimate_for_proposals(features, proposals)            
 
-        detected_objects_with_given_scores = self.object_scoring_func(outputs)
+        detected_objects_with_given_scores = self.object_scoring_func(outputs, features=features)
 
-        return detected_objects_with_given_scores
+        if not with_image_scores:
+            return detected_objects_with_given_scores
+        else:
+            image_scores = []
+
+            for ds in detected_objects_with_given_scores:
+                image_scores.append(self.image_score_aggregation_func(ds.scores_al).item())
+
+            return image_scores, detected_objects_with_given_scores
 
     ########################################
     ### Class specific scoring functions ### 
     ########################################
 
-    def _one_vs_two_scoring(self, outputs):
+    def _one_vs_two_scoring(self, outputs, **kwargs):
         """
         Comput the one_vs_two scores for the objects in the fasterrcnn outputs 
         """
@@ -112,7 +125,7 @@ class ROIHeadsAL(StandardROIHeads):
 
         return cur_detections
 
-    def _least_confidence_scoring(self, outputs):
+    def _least_confidence_scoring(self, outputs, **kwargs):
         """
         Comput the least_confidence_scoring scores for the objects in the fasterrcnn outputs 
         """
@@ -126,7 +139,7 @@ class ROIHeadsAL(StandardROIHeads):
 
         return cur_detections
 
-    def _random_scoring(self, outputs):
+    def _random_scoring(self, outputs, **kwargs):
         """
         Assign random active learning scores for each object 
         """
@@ -140,3 +153,76 @@ class ROIHeadsAL(StandardROIHeads):
             cur_detection.scores_al = torch.rand(cur_detection.scores.shape).to(device)
 
         return cur_detections
+
+    def _create_translations(self, cfg):
+        
+        def _generate_individual_shift_matrix(alpha, beta):
+            if cfg.AL.PERTURBATION.RANDOM:
+                alpha = random.uniform(0, alpha)
+                beta  = random.uniform(0, beta)
+            return torch.Tensor([
+                    [(1-alpha), 0,       -alpha,    0],
+                    [0,        (1-beta), 0,         -beta],
+                    [alpha,     0,       (1+alpha), 0],
+                    [0,         beta,    0,         (1+beta)],
+                ])
+        
+        alphas = cfg.AL.PERTURBATION.ALPHAS
+        betas  = cfg.AL.PERTURBATION.BETAS
+
+        derived_shift = [
+            [
+                [alpha, beta], 
+                [alpha, -beta], 
+                [-alpha, beta], 
+                [-alpha, -beta]
+            ] 
+            for alpha, beta in product(alphas, betas)
+        ]
+
+        matrices = [_generate_individual_shift_matrix(*params) 
+                        for params in sum(derived_shift, [])]
+        return len(matrices), torch.stack(matrices, dim=-1).to(self.device)
+
+    def _perturbation_scoring(self, raw_outputs, features):
+        
+        # Obtain the raw prediction boxes and probabilities
+        raw_detections, raw_indices = \
+            raw_outputs.inference(self.test_score_thresh, self.test_nms_thresh, 
+                            self.test_detections_per_img)
+        
+        raw_probs = [prob[idx] for (idx, prob) 
+                        in zip(raw_indices, raw_outputs.predict_probs())]
+
+        # Generate perturbed boxes 
+        num_shifts, shift_matrix = self._create_translations(self.cfg)
+
+        all_new_proposals = []
+        for det in raw_detections:
+            new_proposals = Instances(
+                det.image_size,
+                proposal_boxes=Boxes(
+                    torch.einsum('bi,ijc->bjc', 
+                            det.pred_boxes.tensor, 
+                            shift_matrix)
+                         .permute(0,2,1)
+                         .reshape(-1,4)
+                )
+            )
+            all_new_proposals.append(new_proposals)
+        
+        perturbed_outputs = self.estimate_for_proposals(features, all_new_proposals)
+        perturbed_probs = perturbed_outputs.predict_probs()
+
+        for raw_det, raw_prob, perturbed_prob in zip(raw_detections, raw_probs, perturbed_probs):
+            p = raw_prob.repeat_interleave(num_shifts, dim=0)
+            q = perturbed_prob
+            
+            # use crossentropy for calculation diff
+            diff = - (p * torch.log(q)).mean(dim=-1) 
+            # aggregate the statistics for each prediction
+            diff = torch.Tensor([scores.mean() for scores in diff.split(num_shifts)]) 
+            
+            raw_det.scores_al = diff
+        
+        return raw_detections
