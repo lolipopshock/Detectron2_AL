@@ -8,7 +8,7 @@ from detectron2.config.config import CfgNode as CN
 _C.AL = CN()
 _C.AL.MODE = 'object' # {'image', 'object'}
 # Perform active learning on whether image-level or object-level 
-_C.AL.OBJECT_SCORING = '1vs2' # {'1vs2, 'least_confidence', 'perturbation'}
+_C.AL.OBJECT_SCORING = '1vs2' # {'1vs2, 'least_confidence', 'random', 'perturbation'}
 # The method to compute the individual object scores  
 _C.AL.IMAGE_SCORE_AGGREGATION = 'avg' # {'avg', 'max', 'sum'}
 # The method to aggregate the individual object scores to the whole image score 

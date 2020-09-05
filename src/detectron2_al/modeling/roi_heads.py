@@ -194,16 +194,25 @@ class ROIHeadsAL(StandardROIHeads):
         raw_probs = [prob[idx] for (idx, prob) 
                         in zip(raw_indices, raw_outputs.predict_probs())]
 
+        is_empty_raw_detections = [len(det)==0 for det in raw_detections]
+
         # Generate perturbed boxes 
         num_shifts, shift_matrix = self._create_translations(self.cfg)
 
         all_new_proposals = []
-        for det in raw_detections:
+        for is_empty, det in zip(is_empty_raw_detections, raw_detections):
+            
+            if is_empty:
+                # Create a dummy box for empty detections
+                used_boxes = torch.zeros((1,4)).to(self.device)
+            else:
+                used_boxes = det.pred_boxes.tensor
+
             new_proposals = Instances(
                 det.image_size,
                 proposal_boxes=Boxes(
                     torch.einsum('bi,ijc->bjc', 
-                            det.pred_boxes.tensor, 
+                            used_boxes, 
                             shift_matrix)
                          .permute(0,2,1)
                          .reshape(-1,4)
@@ -214,15 +223,19 @@ class ROIHeadsAL(StandardROIHeads):
         perturbed_outputs = self.estimate_for_proposals(features, all_new_proposals)
         perturbed_probs = perturbed_outputs.predict_probs()
 
-        for raw_det, raw_prob, perturbed_prob in zip(raw_detections, raw_probs, perturbed_probs):
-            p = raw_prob.repeat_interleave(num_shifts, dim=0)
-            q = perturbed_prob
+        for is_empty, raw_det, raw_prob, perturbed_prob in zip(is_empty_raw_detections, raw_detections, raw_probs, perturbed_probs):
             
-            # use crossentropy for calculation diff
-            diff = - (p * torch.log(q)).mean(dim=-1) 
-            # aggregate the statistics for each prediction
-            diff = torch.Tensor([scores.mean() for scores in diff.split(num_shifts)]) 
-            
-            raw_det.scores_al = diff
+            if is_empty:
+                raw_det.scores_al = raw_det.scores
+            else:
+                p = raw_prob.repeat_interleave(num_shifts, dim=0)
+                q = perturbed_prob
+                
+                # use crossentropy for calculation diff
+                diff = - (p * torch.log(q)).mean(dim=-1) 
+                # aggregate the statistics for each prediction
+                diff = torch.Tensor([scores.mean() for scores in diff.split(num_shifts)]) 
+                
+                raw_det.scores_al = diff
         
         return raw_detections
