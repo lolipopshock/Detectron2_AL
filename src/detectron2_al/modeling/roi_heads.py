@@ -47,6 +47,8 @@ class ROIHeadsAL(StandardROIHeads):
             self.image_score_aggregation_func = torch.max
         elif cfg.AL.IMAGE_SCORE_AGGREGATION == 'sum':
             self.image_score_aggregation_func = torch.sum
+        elif cfg.AL.IMAGE_SCORE_AGGREGATION == 'random':
+            self.image_score_aggregation_func = lambda x: torch.rand(1)
         else:
             raise NotImplementedError
 
