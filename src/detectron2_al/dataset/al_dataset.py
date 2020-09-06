@@ -148,7 +148,7 @@ class Budget(object):
         if _as is not None and _as != self.style:
             if _as == 'object':
                 # originally image
-                allocated = allocated * self.avg_object_per_image
+                allocated = int(allocated * self.avg_object_per_image)
             elif _as == 'image':
                 # originally object
                 allocated = int(round(allocated / self.avg_object_per_image))
@@ -392,10 +392,18 @@ class ImageActiveLearningDataset(ActiveLearningDataset):
 
         super().create_new_dataset()
 
-        allocated_budget = self.budget.allocate(self._round)
+        allocated_budget = self.budget.allocate(self._round, _as='object')
         if self.sampling_method == 'top':
-            top_image_scores = sorted(image_scores, reverse=True)[:allocated_budget]
-            selected_image_ids = [idx for (score, idx) in top_image_scores]
+            top_image_scores = sorted(image_scores)
+            selected_image_ids = []
+
+            while allocated_budget>0:
+                score, idx = top_image_scores.pop()
+                selected_image_ids.append(idx)
+                num_objects = len(self.coco.getAnnIds([idx]))
+                print(idx, num_objects, allocated_budget)
+                allocated_budget -= num_objects
+
         else:
             raise NotImplementedError
         
