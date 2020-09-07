@@ -15,6 +15,12 @@ _C.AL.IMAGE_SCORE_AGGREGATION = 'avg' # {'avg', 'max', 'sum'}
 
 _C.AL.PERTURBATION = CN()
 # Configurations for perturbation scoring method
+_C.AL.PERTURBATION.VERSION = 1 # 1 to 5 
+# 1 - CE SCORING 
+# 2 - KL SCORING 
+# 3 - IOU SCORING 
+# 4 - IOU + CE 
+# 5 - IOU + KL * 3
 _C.AL.PERTURBATION.ALPHAS = [0.08, 0.12] 
 # Horizontal translation ratio
 _C.AL.PERTURBATION.BETAS = [0.04, 0.16] 

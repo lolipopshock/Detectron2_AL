@@ -12,9 +12,36 @@ from detectron2.modeling.roi_heads.fast_rcnn import FastRCNNOutputLayers, FastRC
 from detectron2.modeling.roi_heads.roi_heads import ROIHeads, StandardROIHeads, ROI_HEADS_REGISTRY
 from detectron2.structures.boxes import Boxes
 from .utils import *
+from ..scoring_utils import elementwise_iou
 
 __all__ = ['ROIHeadsAL']
 
+
+def calculate_ce_scores(p, q, num_shifts):
+    # use crossentropy for calculation diff
+    diff = - (p * torch.log(q)).mean(dim=-1)
+    # aggregate the statistics for each prediction
+    diff = torch.Tensor([scores.mean() for scores in diff.split(num_shifts)]) 
+
+    return diff
+
+def calculate_kl_scores(p, q, num_shifts):
+    # use kl divergence for calculation diff
+    diff = - (p * torch.log(q/p)).mean(dim=-1) 
+    # aggregate the statistics for each prediction
+    diff = torch.Tensor([scores.mean() for scores in diff.split(num_shifts)])
+
+    return diff
+
+def calculate_iou_scores(perturbed_box, raw_det, num_shifts, num_bbox_reg_classes):
+    reshaped_boxes = perturbed_box.reshape(-1, num_bbox_reg_classes, 4)
+    cat_ids = raw_det.pred_classes.repeat_interleave(num_shifts, dim=0)
+    perturbed_boxes = Boxes(torch.stack([reshaped_boxes[row_id, cat_id] for row_id, cat_id in enumerate(cat_ids)]))
+    raw_boxes = Boxes(raw_det.pred_boxes.tensor.repeat_interleave(num_shifts, dim=0))
+    ious = elementwise_iou(raw_boxes, perturbed_boxes)
+    iou_scores = torch.Tensor([scores.mean() for scores in ious.split(num_shifts)])
+    
+    return iou_scores
 
 @ROI_HEADS_REGISTRY.register()
 class ROIHeadsAL(StandardROIHeads):
@@ -224,8 +251,11 @@ class ROIHeadsAL(StandardROIHeads):
         
         perturbed_outputs = self.estimate_for_proposals(features, all_new_proposals)
         perturbed_probs = perturbed_outputs.predict_probs()
+        perturbed_boxes = perturbed_outputs.predict_boxes()
+        num_bbox_reg_classes = perturbed_boxes[0].shape[1] // 4
 
-        for is_empty, raw_det, raw_prob, perturbed_prob in zip(is_empty_raw_detections, raw_detections, raw_probs, perturbed_probs):
+        for is_empty, raw_det, raw_prob, perturbed_prob, perturbed_box in \
+             zip(is_empty_raw_detections, raw_detections, raw_probs, perturbed_probs, perturbed_boxes):
             
             if is_empty:
                 raw_det.scores_al = raw_det.scores
@@ -233,11 +263,25 @@ class ROIHeadsAL(StandardROIHeads):
                 p = raw_prob.repeat_interleave(num_shifts, dim=0)
                 q = perturbed_prob
                 
-                # use crossentropy for calculation diff
-                diff = - (p * torch.log(q)).mean(dim=-1) 
-                # aggregate the statistics for each prediction
-                diff = torch.Tensor([scores.mean() for scores in diff.split(num_shifts)]) 
-                
+                if self.cfg.AL.PERTURBATION.VERSION == 1:
+                    diff = calculate_ce_scores(p, q, num_shifts)
+
+                elif self.cfg.AL.PERTURBATION.VERSION == 2:
+                    diff = calculate_kl_scores(p, q, num_shifts)
+
+                elif self.cfg.AL.PERTURBATION.VERSION == 3:
+                    diff = calculate_iou_scores(perturbed_box, raw_det, num_shifts, num_bbox_reg_classes)
+
+                elif self.cfg.AL.PERTURBATION.VERSION == 4:
+                    diff1 = calculate_iou_scores(perturbed_box, raw_det, num_shifts, num_bbox_reg_classes)
+                    diff2 = calculate_ce_scores(p, q, num_shifts)
+                    diff = diff1 + diff2
+
+                elif self.cfg.AL.PERTURBATION.VERSION == 5:
+                    diff1 = calculate_iou_scores(perturbed_box, raw_det, num_shifts, num_bbox_reg_classes)
+                    diff2 = calculate_kl_scores(p, q, num_shifts)
+                    diff = diff1 + diff2*3
+
                 raw_det.scores_al = diff
         
         return raw_detections
