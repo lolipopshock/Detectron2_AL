@@ -1,0 +1,8 @@
+_BASE_: "../faster_rcnn_R_50_FPN.yaml"
+AL:
+  OBJECT_SCORING: perturbation
+  PERTURBATION:
+    VERSION: 4
+    ALPHAS: [0.10]
+    BETAS: [0.05]
+    RANDOM: true
