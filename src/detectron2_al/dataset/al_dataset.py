@@ -400,10 +400,9 @@ class ImageActiveLearningDataset(ActiveLearningDataset):
             while allocated_budget>0:
                 score, idx = top_image_scores.pop()
                 selected_image_ids.append(idx)
-                num_objects = len(self.coco.getAnnIds([idx]))
-                print(idx, num_objects, allocated_budget)
-                allocated_budget -= num_objects
 
+                num_objects = len(self.coco.getAnnIds([idx]))
+                allocated_budget -= num_objects
         else:
             raise NotImplementedError
         
