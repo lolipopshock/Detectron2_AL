@@ -275,12 +275,12 @@ class ROIHeadsAL(StandardROIHeads):
                 elif self.cfg.AL.PERTURBATION.VERSION == 4:
                     diff1 = calculate_iou_scores(perturbed_box, raw_det, num_shifts, num_bbox_reg_classes)
                     diff2 = calculate_ce_scores(p, q, num_shifts)
-                    diff = diff1 + diff2
+                    diff = diff1 + diff2 * self.cfg.AL.PERTURBATION.LAMBDA
 
                 elif self.cfg.AL.PERTURBATION.VERSION == 5:
                     diff1 = calculate_iou_scores(perturbed_box, raw_det, num_shifts, num_bbox_reg_classes)
                     diff2 = calculate_kl_scores(p, q, num_shifts)
-                    diff = diff1 + diff2*3
+                    diff = diff1 + diff2*3 * self.cfg.AL.PERTURBATION.LAMBDA
 
                 raw_det.scores_al = diff
         

@@ -27,6 +27,8 @@ _C.AL.PERTURBATION.BETAS = [0.04, 0.16]
 # Vertical translation ratio
 _C.AL.PERTURBATION.RANDOM = False 
 # whether generate random perturbation at different iterations
+_C.AL.PERTURBATION.LAMBDA = 1
+# the weighting constant 
 
 _C.AL.DATASET = CN()
 # Specifies the configs for creating new datasets 
