@@ -1,4 +1,5 @@
 _BASE_: "../faster_rcnn_R_50_FPN.yaml"
-OBJECT_FUSION:
-  DECAY: geometry
-  LAST_RATIO: 0.50
+AL:
+  OBJECT_FUSION:
+    DECAY: geometry
+    LAST_RATIO: 0.50
