@@ -112,13 +112,15 @@ def _anno_template(anno_id, image_id, pts, obj_tag):
 class PRIMADataset():
     
     def __init__(self, base_path, anno_path='XML',
-                                  image_path='Images'):
+                                  image_path='Images',
+                                  drop_categories=[]):
         
         self.base_path = base_path
         self.anno_path = os.path.join(base_path, anno_path)
         self.image_path = os.path.join(base_path, image_path)
         
         self._ids = self.find_all_image_ids()
+        self.drop_categories = drop_categories
     
     def __len__(self):
         return len(self.ids)
@@ -181,6 +183,7 @@ class PRIMADataset():
                     # handled by the COCO format. So we just drop them. 
                     if pts.shape[0] >= 4:
                         anno_info = _anno_template(anno_id, idx, pts, item.name)
+                        if anno_info['category_id'] in self.drop_categories: continue
                         all_anno_infos.append(anno_info)
                         anno_id += 1
         
@@ -202,6 +205,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--prima_datapath', type=str, default='./data/prima', help='the path to the prima data folders')
 parser.add_argument('--anno_savepath',  type=str, default='./annotations.json', help='the path to save the new annotations')
+parser.add_argument('--drop_categories', type=int, nargs='+', default=[])
 
 
 if __name__ == "__main__":
@@ -210,7 +214,7 @@ if __name__ == "__main__":
     print("Start running the conversion script")
     
     print(f"Loading the information from the path {args.prima_datapath}")
-    dataset = PRIMADataset(args.prima_datapath)
+    dataset = PRIMADataset(args.prima_datapath, drop_categories=args.drop_categories)
     
     print(f"Saving the annotation to {args.anno_savepath}")
     res = dataset.convert_to_COCO(args.anno_savepath)

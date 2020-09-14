@@ -2,7 +2,8 @@ cd ../tools/
 
 python convert_prima_to_coco.py \
     --prima_datapath ../data/prima/raw \
-    --anno_savepath  ../data/prima/annotations/all.json 
+    --anno_savepath  ../data/prima/annotations/all.json \
+    --drop_categories 4 5 6
 echo "[1/4] The prima dataset has been converted to the COCO format!"
 echo "======================================"
 
