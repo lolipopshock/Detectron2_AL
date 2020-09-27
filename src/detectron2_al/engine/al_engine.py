@@ -163,7 +163,7 @@ class ActiveLearningTrainer(DefaultTrainer):
                 self.run_scoring_step()
                 self.model.train()
 
-        self.al_dataset.save_history()
+            self.al_dataset.save_history()
 
     def run_scoring_step(self):
         """
