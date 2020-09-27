@@ -4,3 +4,4 @@ funcy
 lxml
 imagesize
 beautifulsoup4
+SciencePlots

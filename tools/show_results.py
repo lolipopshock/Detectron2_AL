@@ -15,6 +15,7 @@ from matplotlib.font_manager import FontProperties
 sys.path.append('../src')
 from detectron2_al.configs import get_cfg
 
+import argparse
 
 AP_FEATURES = ['AP', 'AP50', 'AP75', 'APl', 'APm', 'APs']
 LB_FEATURES = ['num_images', 'num_objects', 'training_iter']
@@ -211,7 +212,7 @@ class Visualizer:
 
             if save_name is not None:
                 os.makedirs(self.save_base_path, exist_ok=True)
-                plt.savefig(f'{self.save_base_path}/save_name.png')
+                plt.savefig(f'{self.save_base_path}/{save_name}.png')
             else:
                 plt.show()
 
@@ -222,3 +223,21 @@ class Visualizer:
             plot_function()
 
         self.create_customized_plot(wrapped_plot_function, save_name)
+
+    
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--viz_save_base_path", type=str)
+    parser.add_argument("--exp_base_path", type=str)
+    parser.add_argument("--dataset_name", type=str)
+
+    args = parser.parse_args()
+
+    exp_set = Experiments(args.exp_base_path, args.dataset_name)
+    visualizer = Visualizer(font_path='./RobotoCondensed-Regular.ttf', save_base_path=args.viz_save_base_path)
+
+    visualizer.create_simple_plot(lambda: exp_set.plot_training_stats(xaxis='cum_num_images'), save_name='tc_images')
+    visualizer.create_simple_plot(lambda: exp_set.plot_training_stats(xaxis='cum_num_objects'), save_name='tc_objects')
+    visualizer.create_simple_plot(lambda: exp_set.plot_training_stats(xaxis='round'), save_name='tc_rounds')
+    visualizer.create_customized_plot(lambda: exp_set.plot_dataset_acc(), save_name='da')
