@@ -103,3 +103,23 @@ _C.AL.TRAINING.EPOCHS_PER_ROUND_INITIAL = 500
 # iterations = total_imgs / batch_size * epochs_per_round
 _C.AL.TRAINING.EPOCHS_PER_ROUND_DECAY = 'linear'
 _C.AL.TRAINING.EPOCHS_PER_ROUND_LAST = 50
+
+
+##############################################################
+### Provide config support for newer version of Detectron2 ###
+### ------------------------------------------------------ ###
+### Note: this is only for compatibility when loading      ### 
+### model configs and weights, and the actual config       ###
+### won't be used                                          ### 
+##############################################################
+
+_C.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_TYPE = "smooth_l1"
+_C.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_WEIGHT = 1.0
+_C.MODEL.RPN.BBOX_REG_LOSS_TYPE = "smooth_l1"
+_C.MODEL.RPN.BBOX_REG_LOSS_WEIGHT = 1.0
+_C.SOLVER.CLIP_GRADIENTS = CN({"ENABLED": False})
+_C.SOLVER.CLIP_GRADIENTS.CLIP_TYPE = "value"
+_C.SOLVER.CLIP_GRADIENTS.CLIP_VALUE = 1.0
+_C.SOLVER.CLIP_GRADIENTS.NORM_TYPE = 2.0
+_C.SOLVER.NESTEROV = False
+_C.SOLVER.REFERENCE_WORLD_SIZE = 0
