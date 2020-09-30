@@ -29,12 +29,18 @@ def load_json(json_path):
     with open(json_path, 'r') as fp:
         return json.load(fp)
 
-def create_color_palette(show=False):
-    object_plot_color = sns.color_palette("GnBu_d")
+def create_color_palette(show=False, style=0):
+    if style == 0:
+        object_plot_color = sns.color_palette("GnBu_d")
         #sns.light_palette((210, 90, 60), input="husl")
-    image_plot_color = sns.color_palette("RdPu")
+
+        image_plot_color = sns.color_palette("RdPu")
         #sns.light_palette((45, 90, 60), input="husl")
-    
+
+    else:
+        image_plot_color = sns.color_palette("GnBu_d")
+        object_plot_color = sns.color_palette("Paired")[1:]
+
     if show:
         sns.palplot(object_plot_color)
         sns.palplot(image_plot_color)
@@ -99,10 +105,67 @@ class Experiment:
         return res
 
 
-class Experiments:
+class ExperimentCV:
 
+    def __init__(self, name,
+                    base_path,
+                    fold_number = None,
+                    config_name = 'config.yaml',
+                    history_name = 'labeling_history.json',
+                    evaluation_folder = 'evals',
+                    allow_unfinished = True,
+                    agg_table = True):
+
+        """For all runs within a cross validation experiment for a dataset.
+        """
+
+        self.name = name
+        self.base_path = base_path
+        self.exps = {}
+        self.agg_table = agg_table
+
+        if fold_number is None:
+            fold_number = len(os.listdir(self.base_path))
+
+        self.fold_number = fold_number
+
+        for idx in range(fold_number):
+            try:
+                exp = Experiment(name = f'{self.name}-{idx}',
+                            base_path= f'{self.base_path}/{idx}',
+                            config_name = config_name, 
+                            history_name = history_name, 
+                            evaluation_folder = evaluation_folder, 
+                            allow_unfinished = allow_unfinished) 
+                self.exps[idx] = exp
+            except:
+                print(f"Fold [{idx}/{fold_number}] hasn't been successfully loaded.")
+
+    def load_training_stats(self):
+
+        df = pd.concat([exp.load_training_stats().assign(fold=idx) for idx, exp in self.exps.items()])
+
+        if not self.agg_table:
+            return df
+        else:
+            return df.groupby(['round']).mean().reset_index()
+
+    def load_history_dataset_acc(self):
+
+        df = pd.concat([exp.load_history_dataset_acc().assign(fold=idx) for idx, exp in self.exps.items()])
+
+        if not self.agg_table:
+            return df
+        else:
+            return df.groupby(['round']).mean().reset_index()
+
+class ExperimentGroup:
+
+    exp_constructor = Experiment
     def __init__(self, base_path,
                        dataset_name,
+                       select_img_exps = [],
+                       select_obj_exps = [],
                        architecture_name  = 'faster_rcnn_R_50_FPN'):
         
         """For all runs within experiments for a dataset.
@@ -111,21 +174,23 @@ class Experiments:
         self.base_path = base_path
         self.dataset_name = dataset_name
         self.architecture_name = architecture_name
-
+        self.select_exps = {'image': select_img_exps,'object': select_obj_exps}
         self.exps = {}
         for exp_cat in ['image', 'object']:
-            self.exps[exp_cat] = self.load_experiments(f'{self.base_path}/{exp_cat}/{self.architecture_name}')
+            self.exps[exp_cat] = self.load_experiments(f'{self.base_path}/{exp_cat}/{self.architecture_name}', self.select_exps[exp_cat])
 
-    @staticmethod
-    def load_experiments(base_path):
-        
+    def load_experiments(self, base_path, select_exps=[]):
         all_exps = []
         for name in os.listdir(base_path):
+            if select_exps != [] and name not in select_exps: 
+                print(f"Skip loading experiment {name}.")
+                continue 
+
             try:
-                exp = Experiment(name = name, base_path = os.path.join(base_path, name))
+                exp = self.exp_constructor(name = name, base_path = os.path.join(base_path, name))
                 all_exps.append(exp)
             except:
-                print(f"skipped for {name}")
+                print(f"Experiment {name} was not successfully loaded.")
         return all_exps
 
 
@@ -172,11 +237,16 @@ class Experiments:
 
         sns.barplot(x='round', y='AP', hue='name', data=all_res, ax=axes[1],
                 palette= sns.color_palette("Paired")[3:])
-        plt.ylabel("AP@IOU[0.50:0.95] on Validation Set")
-        plt.xlabel("Labeling Rounds")
+        plt.ylabel("AP@IOU[0.50:0.95] of the Created Dataset")
         plt.yticks(list(range(10,110,10)))
         plt.axhline(y=avg, linestyle ="--", linewidth=0.75)
         plt.legend(loc='lower right', bbox_to_anchor=(1, 0.355))
+
+
+class ExperimentCVGroup(ExperimentGroup):
+    
+    exp_constructor = ExperimentCV
+
 
 class Visualizer:
 
@@ -234,7 +304,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    exp_set = Experiments(args.exp_base_path, args.dataset_name)
+    exp_set = ExperimentGroup(args.exp_base_path, args.dataset_name)
     visualizer = Visualizer(font_path='./RobotoCondensed-Regular.ttf', save_base_path=args.viz_save_base_path)
 
     visualizer.create_simple_plot(lambda: exp_set.plot_training_stats(xaxis='cum_num_images'), save_name='tc_images')
