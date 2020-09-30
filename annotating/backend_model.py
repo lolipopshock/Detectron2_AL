@@ -167,16 +167,16 @@ class ObjectDetectionAPI(LabelStudioMLBase):
         self.from_name, self.to_name, self.value, self.classes =\
             get_single_tag_keys(self.parsed_label_config, 'RectangleLabels', 'Image')
         self.freeze_extractor = freeze_extractor
-    
+        
         self.model = Detectron2LayoutModel(
-            config_path="https://www.dropbox.com/s/ta4777i1g1jjj18/config.yml?dl=1",
-            model_path ="https://www.dropbox.com/s/f261qar6f75b9c0/model_final.pth?dl=1",
-            label_map={1: "title", 2: "address", 3: "text", 4:"number"},
-            extra_config=["TEST.DETECTIONS_PER_IMAGE", 150, 
-                          "MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.5,
-                          "MODEL.ROI_HEADS.NMS_THRESH_TEST", 0.75]
-        )
-
+                config_path="https://www.dropbox.com/s/ta4777i1g1jjj18/config.yml?dl=1",
+                model_path ="https://www.dropbox.com/s/f261qar6f75b9c0/model_final.pth?dl=1",
+                label_map={1: "title", 2: "address", 3: "text", 4:"number"},
+                extra_config=["TEST.DETECTIONS_PER_IMAGE", 150, 
+                            "MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.5,
+                            "MODEL.ROI_HEADS.NMS_THRESH_TEST", 0.75]
+            )
+            
     def reset_model(self):
         ## self.model = ImageClassifier(len(self.classes), self.freeze_extractor)
         pass
